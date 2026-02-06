@@ -89,25 +89,22 @@ const PatientBillingCard = ({
         if (error) throw error;
       }
 
-      // If marking as paid, color events purple in Google Calendar
-      if (markingAsPaid) {
-        const eventIds = billing.sessions
-          .filter(s => s.eventId && s.calendarId)
-          .map(s => ({ eventId: s.eventId!, calendarId: s.calendarId! }));
+      // Update calendar colors: purple when paid, yellow when unpaid
+      const eventIds = billing.sessions
+        .filter(s => s.eventId && s.calendarId)
+        .map(s => ({ eventId: s.eventId!, calendarId: s.calendarId! }));
 
-        if (eventIds.length > 0) {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              await supabase.functions.invoke("google-calendar-update-colors", {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-                body: { eventIds },
-              });
-            }
-          } catch (colorError) {
-            console.error("Failed to update calendar colors:", colorError);
-            // Don't fail the whole operation if color update fails
+      if (eventIds.length > 0) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            await supabase.functions.invoke("google-calendar-update-colors", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: { eventIds, colorId: markingAsPaid ? "3" : "5" },
+            });
           }
+        } catch (colorError) {
+          console.error("Failed to update calendar colors:", colorError);
         }
       }
     },
