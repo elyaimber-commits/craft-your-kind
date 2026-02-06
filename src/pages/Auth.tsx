@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
@@ -86,6 +88,25 @@ const Auth = () => {
               {loading ? "טוען..." : isLogin ? "התחבר" : "הרשם"}
             </Button>
           </form>
+          <div className="my-4 flex items-center gap-2">
+            <Separator className="flex-1" />
+            <span className="text-sm text-muted-foreground">או</span>
+            <Separator className="flex-1" />
+          </div>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={async () => {
+              const { error } = await lovable.auth.signInWithOAuth("google", {
+                redirect_uri: window.location.origin,
+              });
+              if (error) {
+                toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+              }
+            }}
+          >
+            התחבר עם Google
+          </Button>
           <div className="mt-4 text-center">
             <button
               type="button"
