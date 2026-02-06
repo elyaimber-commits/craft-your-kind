@@ -109,7 +109,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const message = `היי ${billing.patient.name}, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה! 🙏`;
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    return `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodeURIComponent(message)}`;
+    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
   };
 
   if (calendarData?.error === "not_connected") {
