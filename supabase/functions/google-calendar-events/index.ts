@@ -91,29 +91,57 @@ serve(async (req) => {
         .eq('user_id', userId);
     }
 
-    // Fetch today's events
+    // Fetch calendar list first
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7).toISOString();
 
-    const calendarRes = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfDay}&timeMax=${endOfDay}&singleEvents=true&orderBy=startTime`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
     );
+    const calListData = await calListRes.json();
 
-    const calendarData = await calendarRes.json();
-
-    if (!calendarRes.ok) {
-      console.error('Calendar API error:', calendarData);
-      return new Response(JSON.stringify({ error: 'calendar_error', message: calendarData.error?.message }), {
+    if (!calListRes.ok) {
+      console.error('Calendar list error:', calListData);
+      return new Response(JSON.stringify({ error: 'calendar_error', message: calListData.error?.message }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({ events: calendarData.items || [] }), {
+    const calendars = calListData.items || [];
+    
+    // Fetch events from all calendars in parallel
+    const allEventsPromises = calendars.map(async (cal: any) => {
+      try {
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${startOfDay}&timeMax=${endOfDay}&singleEvents=true&orderBy=startTime`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.items || []).map((event: any) => ({
+          ...event,
+          calendarName: cal.summary,
+          calendarColor: cal.backgroundColor,
+        }));
+      } catch {
+        return [];
+      }
+    });
+
+    const allEventsArrays = await Promise.all(allEventsPromises);
+    const allEvents = allEventsArrays.flat();
+
+    // Sort by start time
+    allEvents.sort((a: any, b: any) => {
+      const aTime = a.start?.dateTime || a.start?.date || '';
+      const bTime = b.start?.dateTime || b.start?.date || '';
+      return aTime.localeCompare(bTime);
+    });
+
+    return new Response(JSON.stringify({ events: allEvents }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
