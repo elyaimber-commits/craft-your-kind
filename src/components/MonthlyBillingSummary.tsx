@@ -77,15 +77,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           matchedEventIds.add(event.id);
           return {
             date: event.start.dateTime
-              ? new Date(event.start.dateTime).toLocaleDateString("he-IL", {
-                  day: "numeric",
-                  month: "short",
-                })
+              ? (() => { const d = new Date(event.start.dateTime!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
               : event.start.date
-              ? new Date(event.start.date).toLocaleDateString("he-IL", {
-                  day: "numeric",
-                  month: "short",
-                })
+              ? (() => { const d = new Date(event.start.date!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
               : "",
             summary: event.summary || "",
           };
