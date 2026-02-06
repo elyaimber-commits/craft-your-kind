@@ -22,7 +22,7 @@ interface Patient {
 
 interface PatientBilling {
   patient: Patient;
-  sessions: { date: string; summary: string }[];
+  sessions: { date: string; summary: string; eventId?: string; calendarId?: string }[];
   total: number;
 }
 
@@ -63,12 +63,14 @@ const PatientBillingCard = ({
 
   const markPaidMutation = useMutation({
     mutationFn: async () => {
+      const markingAsPaid = !isPaid;
+      
       if (payment) {
         const { error } = await supabase
           .from("payments")
           .update({
-            paid: !isPaid,
-            paid_at: !isPaid ? new Date().toISOString() : null,
+            paid: markingAsPaid,
+            paid_at: markingAsPaid ? new Date().toISOString() : null,
             amount: billing.total,
             session_count: billing.sessions.length,
           })
@@ -86,11 +88,33 @@ const PatientBillingCard = ({
         });
         if (error) throw error;
       }
+
+      // If marking as paid, color events purple in Google Calendar
+      if (markingAsPaid) {
+        const eventIds = billing.sessions
+          .filter(s => s.eventId && s.calendarId)
+          .map(s => ({ eventId: s.eventId!, calendarId: s.calendarId! }));
+
+        if (eventIds.length > 0) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              await supabase.functions.invoke("google-calendar-update-colors", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+                body: { eventIds },
+              });
+            }
+          } catch (colorError) {
+            console.error("Failed to update calendar colors:", colorError);
+            // Don't fail the whole operation if color update fails
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       toast({
-        title: !isPaid ? "סומן כשולם ✓" : "סומן כלא שולם",
+        title: !isPaid ? "סומן כשולם ✓ (והפגישות נצבעו בסגול)" : "סומן כלא שולם",
       });
     },
     onError: (error: any) => {
