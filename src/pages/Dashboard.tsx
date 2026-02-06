@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, MessageCircle, Pencil, Trash2, LogOut } from "lucide-react";
+import GoogleCalendarSection from "@/components/GoogleCalendarSection";
 
 interface Patient {
   id: string;
@@ -116,7 +117,8 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
+          <GoogleCalendarSection />
           <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
             <DialogTrigger asChild>
               <Button>
