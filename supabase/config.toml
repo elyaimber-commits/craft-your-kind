@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.google-calendar-events]
 verify_jwt = false
+
+[functions.google-calendar-billing]
+verify_jwt = false
