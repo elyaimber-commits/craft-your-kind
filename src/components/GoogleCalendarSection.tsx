@@ -35,16 +35,20 @@ const GoogleCalendarSection = () => {
 
   const connectGoogle = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
       const res = await supabase.functions.invoke("google-auth", {
         body: {
-          userId: user!.id,
+          userId: session.user.id,
           redirectUrl: window.location.origin + "/dashboard",
         },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (res.error) throw res.error;
       if (res.data?.url) {
-        window.location.href = res.data.url;
+        window.open(res.data.url, "_blank", "noopener,noreferrer");
       }
     } catch (error: any) {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
