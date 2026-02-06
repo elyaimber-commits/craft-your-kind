@@ -20,6 +20,8 @@ interface CalendarEvent {
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
   colorId?: string;
+  calendarName?: string;
+  organizer?: { email?: string };
 }
 
 interface MonthlyBillingSummaryProps {
@@ -84,6 +86,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               ? (() => { const d = new Date(event.start.date!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
               : "",
             summary: event.summary || "",
+            eventId: event.id,
+            calendarId: event.organizer?.email || "primary",
           };
         });
 
