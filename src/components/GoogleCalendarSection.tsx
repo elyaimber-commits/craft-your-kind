@@ -11,7 +11,27 @@ interface CalendarEvent {
   summary: string;
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
+  colorId?: string;
+  calendarColor?: string;
 }
+
+// Google Calendar colorId mapping to status
+// Green (2, 10) = נקבע, Red/Pink (4, 11) = בוטל, Yellow (5) = בוצע
+const getEventStyle = (event: CalendarEvent) => {
+  const colorId = event.colorId;
+  switch (colorId) {
+    case "2":
+    case "10":
+      return { border: "border-l-4 border-l-green-500 bg-green-50", label: "נקבע" };
+    case "4":
+    case "11":
+      return { border: "border-l-4 border-l-red-500 bg-red-50", label: "בוטל" };
+    case "5":
+      return { border: "border-l-4 border-l-yellow-500 bg-yellow-50", label: "בוצע" };
+    default:
+      return { border: "border-l-4 border-l-blue-400 bg-background", label: "" };
+  }
+};
 
 const GoogleCalendarSection = () => {
   const { user } = useAuth();
@@ -120,12 +140,22 @@ const GoogleCalendarSection = () => {
           <p className="text-muted-foreground">אין פגישות קרובות</p>
         ) : (
           <div className="space-y-2">
-            {events.slice(0, 10).map((event) => (
-              <div key={event.id} className="flex items-center justify-between rounded-md border p-3">
-                <span className="font-medium">{event.summary || "(ללא כותרת)"}</span>
-                <span className="text-sm text-muted-foreground" dir="ltr">{formatTime(event)}</span>
-              </div>
-            ))}
+            {events.slice(0, 20).map((event) => {
+              const style = getEventStyle(event);
+              return (
+                <div key={event.id} className={`flex items-center justify-between rounded-md border p-3 ${style.border}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{event.summary || "(ללא כותרת)"}</span>
+                    {style.label && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-background/80 text-muted-foreground">
+                        {style.label}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm text-muted-foreground" dir="ltr">{formatTime(event)}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
