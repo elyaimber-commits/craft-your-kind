@@ -74,6 +74,59 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          month: string
+          notes: string | null
+          paid: boolean
+          paid_at: string | null
+          patient_id: string
+          receipt_number: string | null
+          session_count: number
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          month: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          patient_id: string
+          receipt_number?: string | null
+          session_count?: number
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          month?: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          patient_id?: string
+          receipt_number?: string | null
+          session_count?: number
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { useState } from "react";
 import NewPatientSuggestion from "@/components/NewPatientSuggestion";
+import PatientBillingCard from "@/components/PatientBillingCard";
 
 interface Patient {
   id: string;
@@ -22,24 +22,18 @@ interface CalendarEvent {
   colorId?: string;
 }
 
-interface PatientBilling {
-  patient: Patient;
-  sessions: { date: string; summary: string }[];
-  total: number;
-}
-
 interface MonthlyBillingSummaryProps {
   patients: Patient[];
 }
 
-const YELLOW_COLOR_IDS = ["5"]; // Yellow = completed session
+const YELLOW_COLOR_IDS = ["5"];
 
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
 
-  // Get current month range
   const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const currentMonthName = now.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   const { data: calendarData, isLoading } = useQuery({
@@ -47,25 +41,33 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
       const res = await supabase.functions.invoke("google-calendar-billing", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-
       if (res.error) throw res.error;
       return res.data as { events?: CalendarEvent[]; error?: string };
     },
     enabled: !!user,
   });
 
+  const { data: payments = [] } = useQuery({
+    queryKey: ["payments", currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("month", currentMonth);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const events = calendarData?.events || [];
-
-  // Match yellow events to patients by name
   const yellowEvents = events.filter((e) => YELLOW_COLOR_IDS.includes(e.colorId || ""));
-
   const matchedEventIds = new Set<string>();
 
-  const billingData: PatientBilling[] = patients
+  const billingData = patients
     .map((patient) => {
       const matchingSessions = yellowEvents
         .filter((event) => {
@@ -94,7 +96,6 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
 
-  // Find unmatched yellow events → suggest as new patients
   const unmatchedEvents = yellowEvents.filter((e) => !matchedEventIds.has(e.id));
   const unmatchedByName: Record<string, number> = {};
   unmatchedEvents.forEach((e) => {
@@ -104,7 +105,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     }
   });
 
-  const generateWhatsAppMessage = (billing: PatientBilling) => {
+  const generateWhatsAppMessage = (billing: { patient: Patient; sessions: { date: string }[]; total: number }) => {
     const dates = billing.sessions.map((s) => s.date).join(", ");
     const message = `היי ${billing.patient.name}, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה! 🙏`;
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
@@ -112,9 +113,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  if (calendarData?.error === "not_connected") {
-    return null; // GoogleCalendarSection handles this
-  }
+  if (calendarData?.error === "not_connected") return null;
 
   if (isLoading) {
     return (
@@ -126,12 +125,24 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     );
   }
 
+  const totalBilled = billingData.reduce((sum, b) => sum + b.total, 0);
+  const totalPaid = billingData
+    .filter((b) => payments.find((p) => p.patient_id === b.patient.id)?.paid)
+    .reduce((sum, b) => sum + b.total, 0);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          סיכום חיוב — {currentMonthName}
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            סיכום חיוב — {currentMonthName}
+          </div>
+          {billingData.length > 0 && (
+            <div className="text-sm font-normal text-muted-foreground">
+              שולם: ₪{totalPaid} / ₪{totalBilled}
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -141,84 +152,22 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           </p>
         ) : (
           <div className="space-y-3">
-            {billingData.map((billing) => {
-              const isExpanded = expandedPatient === billing.patient.id;
-              return (
-                <div
-                  key={billing.patient.id}
-                  className="rounded-lg border bg-card"
-                >
-                  <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors rounded-lg"
-                    onClick={() =>
-                      setExpandedPatient(isExpanded ? null : billing.patient.id)
-                    }
-                  >
-                    <div className="flex items-center gap-3">
-                      <button className="text-muted-foreground">
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                      <div>
-                        <span className="font-semibold text-lg">
-                          {billing.patient.name}
-                        </span>
-                        <span className="text-sm text-muted-foreground mr-2">
-                          ({billing.sessions.length} פגישות)
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-lg">
-                        ₪{billing.total}
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(
-                            generateWhatsAppMessage(billing),
-                            "_blank"
-                          );
-                        }}
-                      >
-                        <MessageCircle className="ml-1 h-4 w-4" />
-                        שלח בקשת תשלום
-                      </Button>
-                    </div>
-                  </div>
-                  {isExpanded && (
-                    <div className="px-4 pb-4 pt-0 border-t">
-                      <div className="mt-3 space-y-1">
-                        {billing.sessions.map((session, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between text-sm py-1 px-2 rounded bg-accent/30 border-r-4 border-r-primary"
-                          >
-                            <span>{session.summary}</span>
-                            <span className="text-muted-foreground" dir="ltr">
-                              {session.date}
-                            </span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between pt-2 font-medium border-t mt-2">
-                          <span>
-                            {billing.sessions.length} × ₪
-                            {billing.patient.session_price}
-                          </span>
-                          <span>סה״כ: ₪{billing.total}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {billingData.map((billing) => (
+              <PatientBillingCard
+                key={billing.patient.id}
+                billing={billing}
+                payment={payments.find((p) => p.patient_id === billing.patient.id)}
+                currentMonth={currentMonth}
+                isExpanded={expandedPatient === billing.patient.id}
+                onToggle={() =>
+                  setExpandedPatient(
+                    expandedPatient === billing.patient.id ? null : billing.patient.id
+                  )
+                }
+                generateWhatsAppMessage={generateWhatsAppMessage}
+              />
+            ))}
 
-            {/* Unmatched yellow events - suggest adding as patients */}
             {Object.keys(unmatchedByName).length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 <h3 className="text-sm font-medium text-muted-foreground">
