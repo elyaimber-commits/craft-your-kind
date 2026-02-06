@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Google Calendar color ID 9 = blueberry/purple
-const PURPLE_COLOR_ID = "9";
+const PURPLE_COLOR_ID = "3";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
