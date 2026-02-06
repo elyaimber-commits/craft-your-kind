@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import NewPatientSuggestion from "@/components/NewPatientSuggestion";
 
 interface Patient {
   id: string;
@@ -62,6 +63,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   // Match yellow events to patients by name
   const yellowEvents = events.filter((e) => YELLOW_COLOR_IDS.includes(e.colorId || ""));
 
+  const matchedEventIds = new Set<string>();
+
   const billingData: PatientBilling[] = patients
     .map((patient) => {
       const matchingSessions = yellowEvents
@@ -70,20 +73,23 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           const patientName = patient.name.trim().toLowerCase();
           return eventName.includes(patientName) || patientName.includes(eventName);
         })
-        .map((event) => ({
-          date: event.start.dateTime
-            ? new Date(event.start.dateTime).toLocaleDateString("he-IL", {
-                day: "numeric",
-                month: "short",
-              })
-            : event.start.date
-            ? new Date(event.start.date).toLocaleDateString("he-IL", {
-                day: "numeric",
-                month: "short",
-              })
-            : "",
-          summary: event.summary || "",
-        }));
+        .map((event) => {
+          matchedEventIds.add(event.id);
+          return {
+            date: event.start.dateTime
+              ? new Date(event.start.dateTime).toLocaleDateString("he-IL", {
+                  day: "numeric",
+                  month: "short",
+                })
+              : event.start.date
+              ? new Date(event.start.date).toLocaleDateString("he-IL", {
+                  day: "numeric",
+                  month: "short",
+                })
+              : "",
+            summary: event.summary || "",
+          };
+        });
 
       return {
         patient,
@@ -93,6 +99,16 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     })
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
+
+  // Find unmatched yellow events → suggest as new patients
+  const unmatchedEvents = yellowEvents.filter((e) => !matchedEventIds.has(e.id));
+  const unmatchedByName: Record<string, number> = {};
+  unmatchedEvents.forEach((e) => {
+    const name = (e.summary || "").trim();
+    if (name) {
+      unmatchedByName[name] = (unmatchedByName[name] || 0) + 1;
+    }
+  });
 
   const generateWhatsAppMessage = (billing: PatientBilling) => {
     const dates = billing.sessions.map((s) => s.date).join(", ");
@@ -125,7 +141,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {billingData.length === 0 ? (
+        {billingData.length === 0 && Object.keys(unmatchedByName).length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
             אין פגישות שסומנו כ"בוצע" (צהוב) החודש
           </p>
@@ -186,7 +202,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                         {billing.sessions.map((session, i) => (
                           <div
                             key={i}
-                            className="flex items-center justify-between text-sm py-1 px-2 rounded bg-yellow-50 border-r-4 border-r-yellow-500"
+                            className="flex items-center justify-between text-sm py-1 px-2 rounded bg-accent/30 border-r-4 border-r-primary"
                           >
                             <span>{session.summary}</span>
                             <span className="text-muted-foreground" dir="ltr">
@@ -207,6 +223,18 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 </div>
               );
             })}
+
+            {/* Unmatched yellow events - suggest adding as patients */}
+            {Object.keys(unmatchedByName).length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  מטופלים חדשים שזוהו ביומן:
+                </h3>
+                {Object.entries(unmatchedByName).map(([name, count]) => (
+                  <NewPatientSuggestion key={name} name={name} sessionCount={count} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
