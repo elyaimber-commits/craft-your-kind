@@ -5,12 +5,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, MessageCircle, Pencil, Trash2, LogOut } from "lucide-react";
+import { Plus, Pencil, Trash2, LogOut, Users } from "lucide-react";
 import GoogleCalendarSection from "@/components/GoogleCalendarSection";
+import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 
 interface Patient {
   id: string;
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [price, setPrice] = useState("");
+  const [showPatients, setShowPatients] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
     queryKey: ["patients"],
@@ -93,113 +94,103 @@ const Dashboard = () => {
     setDialogOpen(true);
   };
 
-  const generateWhatsAppLink = (patient: Patient) => {
-    const message = encodeURIComponent(
-      `שלום ${patient.name}, זוהי בקשת תשלום עבור הטיפול.\nסכום: ₪${patient.session_price}\nתודה! 🙏`
-    );
-    const cleanPhone = patient.phone.replace(/\D/g, "");
-    const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    return `https://wa.me/${intlPhone}?text=${message}`;
-  };
-
-  const sendWhatsApp = (patient: Patient) => {
-    window.open(generateWhatsAppLink(patient), "_blank");
-  };
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">💬 ניהול מטופלים</h1>
-          <Button variant="outline" onClick={signOut}>
-            <LogOut className="ml-2 h-4 w-4" />
-            התנתק
-          </Button>
+          <h1 className="text-3xl font-bold text-foreground">💬 סיכום חיוב חודשי</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowPatients(!showPatients)}>
+              <Users className="ml-2 h-4 w-4" />
+              ניהול מטופלים
+            </Button>
+            <Button variant="outline" onClick={signOut}>
+              <LogOut className="ml-2 h-4 w-4" />
+              התנתק
+            </Button>
+          </div>
         </div>
 
-        <div className="mb-6 space-y-4">
+        {/* Google Calendar connection (only shows if not connected) */}
+        <div className="mb-6">
           <GoogleCalendarSection />
-          <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="ml-2 h-4 w-4" />
-                הוסף מטופל
-              </Button>
-            </DialogTrigger>
-            <DialogContent dir="rtl">
-              <DialogHeader>
-                <DialogTitle>{editingPatient ? "עריכת מטופל" : "הוספת מטופל חדש"}</DialogTitle>
-              </DialogHeader>
-              <form
-                onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <Label>שם</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>טלפון</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-1234567" required dir="ltr" />
-                </div>
-                <div className="space-y-2">
-                  <Label>מחיר לטיפול (₪)</Label>
-                  <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required dir="ltr" />
-                </div>
-                <Button type="submit" className="w-full" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? "שומר..." : "שמור"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
 
-        {isLoading ? (
-          <p className="text-muted-foreground">טוען...</p>
-        ) : patients.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">אין מטופלים עדיין. הוסף את המטופל הראשון!</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">שם</TableHead>
-                    <TableHead className="text-right">טלפון</TableHead>
-                    <TableHead className="text-right">מחיר (₪)</TableHead>
-                    <TableHead className="text-right">פעולות</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {patients.map((patient) => (
-                    <TableRow key={patient.id}>
-                      <TableCell className="font-medium">{patient.name}</TableCell>
-                      <TableCell dir="ltr" className="text-right">{patient.phone}</TableCell>
-                      <TableCell>{patient.session_price}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="default" onClick={() => sendWhatsApp(patient)}>
-                            <MessageCircle className="ml-1 h-4 w-4" />
-                            וואטסאפ
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEdit(patient)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate(patient.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        {/* Monthly billing summary - the main view */}
+        <div className="mb-6">
+          <MonthlyBillingSummary patients={patients} />
+        </div>
+
+        {/* Patient management - collapsible */}
+        {showPatients && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">ניהול מטופלים</h2>
+              <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="ml-2 h-4 w-4" />
+                    הוסף מטופל
+                  </Button>
+                </DialogTrigger>
+                <DialogContent dir="rtl">
+                  <DialogHeader>
+                    <DialogTitle>{editingPatient ? "עריכת מטופל" : "הוספת מטופל חדש"}</DialogTitle>
+                  </DialogHeader>
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
+                    className="space-y-4"
+                  >
+                    <div className="space-y-2">
+                      <Label>שם</Label>
+                      <Input value={name} onChange={(e) => setName(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>טלפון</Label>
+                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-1234567" required dir="ltr" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>מחיר לטיפול (₪)</Label>
+                      <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required dir="ltr" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={saveMutation.isPending}>
+                      {saveMutation.isPending ? "שומר..." : "שמור"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {isLoading ? (
+              <p className="text-muted-foreground">טוען...</p>
+            ) : patients.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-muted-foreground">אין מטופלים. הוסף את המטופל הראשון!</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {patients.map((patient) => (
+                  <div key={patient.id} className="flex items-center justify-between rounded-lg border p-3 bg-card">
+                    <div>
+                      <span className="font-medium">{patient.name}</span>
+                      <span className="text-sm text-muted-foreground mr-2" dir="ltr">{patient.phone}</span>
+                      <span className="text-sm text-muted-foreground mr-2">₪{patient.session_price}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(patient)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(patient.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
