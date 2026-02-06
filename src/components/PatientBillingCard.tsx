@@ -120,22 +120,11 @@ const PatientBillingCard = ({
         isPaid ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10" : ""
       }`}
     >
-      <div
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors rounded-lg"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-3">
-          <button className="text-muted-foreground">
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </button>
+      {/* Main row - always visible */}
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-lg">
-              {billing.patient.name}
-            </span>
+            <span className="font-semibold text-lg">{billing.patient.name}</span>
             {isPaid && (
               <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
                 שולם ✓
@@ -145,12 +134,59 @@ const PatientBillingCard = ({
               ({billing.sessions.length} פגישות)
             </span>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
           <span className="font-bold text-lg">₪{billing.total}</span>
+        </div>
+
+        {/* Action buttons - always visible */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => window.open(generateWhatsAppMessage(billing), "_blank")}
+          >
+            <MessageCircle className="ml-1 h-4 w-4" />
+            שלח בקשת תשלום
+          </Button>
+
+          <Button
+            size="sm"
+            variant={isPaid ? "outline" : "secondary"}
+            onClick={() => markPaidMutation.mutate()}
+            disabled={markPaidMutation.isPending}
+          >
+            {markPaidMutation.isPending ? (
+              <Loader2 className="ml-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="ml-1 h-4 w-4" />
+            )}
+            {isPaid ? "בטל סימון תשלום" : "סמן כשולם"}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => generateReceipt()}
+            disabled={generatingReceipt}
+          >
+            <FileText className="ml-1 h-4 w-4" />
+            הנפק קבלה
+          </Button>
+
+          {/* Expand/collapse for session details */}
+          <button
+            onClick={onToggle}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mr-auto"
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            פירוט
+          </button>
         </div>
       </div>
 
+      {/* Expandable session details */}
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t">
           <div className="mt-3 space-y-1">
@@ -171,50 +207,6 @@ const PatientBillingCard = ({
               </span>
               <span>סה״כ: ₪{billing.total}</span>
             </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t">
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(generateWhatsAppMessage(billing), "_blank");
-              }}
-            >
-              <MessageCircle className="ml-1 h-4 w-4" />
-              שלח בקשת תשלום
-            </Button>
-
-            <Button
-              size="sm"
-              variant={isPaid ? "outline" : "secondary"}
-              onClick={(e) => {
-                e.stopPropagation();
-                markPaidMutation.mutate();
-              }}
-              disabled={markPaidMutation.isPending}
-            >
-              {markPaidMutation.isPending ? (
-                <Loader2 className="ml-1 h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="ml-1 h-4 w-4" />
-              )}
-              {isPaid ? "בטל סימון תשלום" : "סמן כשולם"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                generateReceipt();
-              }}
-              disabled={generatingReceipt}
-            >
-              <FileText className="ml-1 h-4 w-4" />
-              הנפק קבלה
-            </Button>
           </div>
         </div>
       )}
