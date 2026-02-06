@@ -65,19 +65,11 @@ serve(async (req) => {
     }
 
     // Redirect back to the app
-    const appRedirect = redirectUrl || `${SUPABASE_URL.replace('.supabase.co', '')}/dashboard`;
+    const finalRedirect = redirectUrl || '/dashboard';
     
-    return new Response(`
-      <html>
-        <body>
-          <script>
-            window.location.href = "${redirectUrl || '/dashboard'}";
-          </script>
-          <p>חיבור הצליח! מעביר אותך חזרה...</p>
-        </body>
-      </html>
-    `, {
-      headers: { 'Content-Type': 'text/html' },
+    return new Response(null, {
+      status: 302,
+      headers: { 'Location': finalRedirect },
     });
   } catch (error) {
     console.error('Callback error:', error);
