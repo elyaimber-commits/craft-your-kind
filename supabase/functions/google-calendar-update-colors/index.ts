@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Google Calendar color ID 9 = blueberry/purple
-const PURPLE_COLOR_ID = "3";
+// Google Calendar color IDs
+const DEFAULT_PAID_COLOR_ID = "3"; // Grape (purple)
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -45,7 +45,8 @@ serve(async (req) => {
     const userId = data.claims.sub;
 
     // Parse request body - expects eventIds array with calendar info
-    const { eventIds } = await req.json();
+    const { eventIds, colorId } = await req.json();
+    const targetColorId = colorId || DEFAULT_PAID_COLOR_ID;
     // eventIds format: [{ calendarId, eventId }, ...]
 
     if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
@@ -113,7 +114,7 @@ serve(async (req) => {
               Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ colorId: PURPLE_COLOR_ID }),
+            body: JSON.stringify({ colorId: targetColorId }),
           }
         );
         if (!res.ok) {
