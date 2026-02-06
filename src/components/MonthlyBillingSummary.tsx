@@ -71,7 +71,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         .filter((event) => {
           const eventName = (event.summary || "").trim().toLowerCase();
           const patientName = patient.name.trim().toLowerCase();
-          return eventName.includes(patientName) || patientName.includes(eventName);
+          return eventName === patientName;
         })
         .map((event) => {
           matchedEventIds.add(event.id);
