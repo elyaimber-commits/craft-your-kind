@@ -22,27 +22,25 @@ serve(async (req) => {
     }
 
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!;
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
 
     // Get user from token
-    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY!, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(
-      authHeader.replace('Bearer ', '')
-    );
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     // Get stored tokens using service role
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
