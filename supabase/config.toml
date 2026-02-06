@@ -1,1 +1,10 @@
 project_id = "puejfjhrinmsjvisyomh"
+
+[functions.google-auth]
+verify_jwt = false
+
+[functions.google-callback]
+verify_jwt = false
+
+[functions.google-calendar-events]
+verify_jwt = false
