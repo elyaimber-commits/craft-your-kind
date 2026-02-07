@@ -13,6 +13,8 @@ interface Patient {
   name: string;
   phone: string;
   session_price: number;
+  billing_type?: string;
+  parent_patient_id?: string | null;
 }
 
 interface CalendarEvent {
@@ -163,18 +165,48 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   // Track calendar event names that differ from patient names (via alias)
   const calendarNameByPatient = new Map<string, string>();
 
-  const billingData = patients
+  // Separate institution parents and children
+  const institutionParents = patients.filter(p => p.billing_type === "institution");
+  const childPatientsByParent = new Map<string, Patient[]>();
+  patients.forEach(p => {
+    if (p.parent_patient_id) {
+      const children = childPatientsByParent.get(p.parent_patient_id) || [];
+      children.push(p);
+      childPatientsByParent.set(p.parent_patient_id, children);
+    }
+  });
+
+  // Patients that are NOT children of an institution (they appear as standalone)
+  const standalonePatients = patients.filter(p => !p.parent_patient_id || p.billing_type === "institution");
+
+  const billingData = standalonePatients
     .map((patient) => {
+      // For institution parents, gather sessions from all children too
+      const patientsToMatch = patient.billing_type === "institution"
+        ? [patient, ...(childPatientsByParent.get(patient.id) || [])]
+        : [patient];
+
       const matchingSessions = billingEvents
         .filter((event) => {
-          const matched = findMatchingPatient(event.summary || "", [patient], aliasMap);
-          return matched?.patient.id === patient.id;
+          for (const p of patientsToMatch) {
+            const matched = findMatchingPatient(event.summary || "", [p], aliasMap);
+            if (matched?.patient.id === p.id) return true;
+          }
+          return false;
         })
         .map((event) => {
           matchedEventIds.add(event.id);
-          const matched = findMatchingPatient(event.summary || "", [patient], aliasMap);
-          if (matched?.viaAlias && event.summary) {
-            calendarNameByPatient.set(patient.id, event.summary.trim());
+          // Find which patient actually matched
+          let matchedPatient = patient;
+          for (const p of patientsToMatch) {
+            const matched = findMatchingPatient(event.summary || "", [p], aliasMap);
+            if (matched?.patient.id === p.id) {
+              matchedPatient = p;
+              if (matched.viaAlias && event.summary) {
+                calendarNameByPatient.set(p.id, event.summary.trim());
+              }
+              break;
+            }
           }
           return {
             date: event.start.dateTime
@@ -185,6 +217,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             summary: event.summary || "",
             eventId: event.id,
             calendarId: event.organizer?.email || "primary",
+            childPatientName: matchedPatient.id !== patient.id ? matchedPatient.name : undefined,
           };
         });
 
@@ -192,6 +225,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         patient,
         sessions: matchingSessions,
         total: matchingSessions.length * patient.session_price,
+        childPatients: patient.billing_type === "institution" ? (childPatientsByParent.get(patient.id) || []) : [],
       };
     })
     .filter((b) => b.sessions.length > 0)

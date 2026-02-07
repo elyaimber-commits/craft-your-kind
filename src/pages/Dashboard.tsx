@@ -18,6 +18,8 @@ interface Patient {
   phone: string;
   session_price: number;
   green_invoice_customer_id?: string | null;
+  billing_type?: string;
+  parent_patient_id?: string | null;
 }
 
 const Dashboard = () => {
@@ -30,6 +32,8 @@ const Dashboard = () => {
   const [phone, setPhone] = useState("");
   const [price, setPrice] = useState("");
   const [greenInvoiceId, setGreenInvoiceId] = useState("");
+  const [billingType, setBillingType] = useState("monthly");
+  const [parentPatientId, setParentPatientId] = useState("");
   const [showPatients, setShowPatients] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
@@ -50,13 +54,13 @@ const Dashboard = () => {
       if (editingPatient) {
         const { error } = await supabase
           .from("patients")
-          .update({ name, phone, session_price: parseFloat(price), green_invoice_customer_id: greenInvoiceId || null })
+          .update({ name, phone, session_price: parseFloat(price), green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null })
           .eq("id", editingPatient.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("patients")
-          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null });
+          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null });
         if (error) throw error;
       }
 
@@ -121,6 +125,8 @@ const Dashboard = () => {
     setPhone("");
     setPrice("");
     setGreenInvoiceId("");
+    setBillingType("monthly");
+    setParentPatientId("");
     setEditingPatient(null);
     setDialogOpen(false);
   };
@@ -131,6 +137,8 @@ const Dashboard = () => {
     setPhone(patient.phone);
     setPrice(patient.session_price.toString());
     setGreenInvoiceId(patient.green_invoice_customer_id || "");
+    setBillingType(patient.billing_type || "monthly");
+    setParentPatientId(patient.parent_patient_id || "");
     setDialogOpen(true);
   };
 
@@ -194,6 +202,33 @@ const Dashboard = () => {
                       <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required dir="ltr" />
                     </div>
                     <div className="space-y-2">
+                      <Label>סוג חיוב</Label>
+                      <select
+                        value={billingType}
+                        onChange={(e) => setBillingType(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="monthly">חודשי (ברירת מחדל)</option>
+                        <option value="per_session">לפגישה</option>
+                        <option value="institution">מוסד</option>
+                      </select>
+                    </div>
+                    {billingType !== "institution" && (
+                      <div className="space-y-2">
+                        <Label>שייך למוסד (אופציונלי)</Label>
+                        <select
+                          value={parentPatientId}
+                          onChange={(e) => setParentPatientId(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">ללא</option>
+                          {patients.filter(p => (p as any).billing_type === "institution" && p.id !== editingPatient?.id).map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="space-y-2">
                       <Label>מזהה לקוח בחשבונית ירוקה (אופציונלי)</Label>
                       <Input value={greenInvoiceId} onChange={(e) => setGreenInvoiceId(e.target.value)} placeholder="מזהה לקוח מחשבונית ירוקה" dir="ltr" />
                     </div>
@@ -217,10 +252,21 @@ const Dashboard = () => {
               <div className="space-y-2">
                 {patients.map((patient) => (
                   <div key={patient.id} className="flex items-center justify-between rounded-lg border p-3 bg-card">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <span className="font-medium">{patient.name}</span>
-                      <span className="text-sm text-muted-foreground mr-2" dir="ltr">{patient.phone}</span>
-                      <span className="text-sm text-muted-foreground mr-2">₪{patient.session_price}</span>
+                      {(patient as any).billing_type === "institution" && (
+                        <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">מוסד</span>
+                      )}
+                      {(patient as any).billing_type === "per_session" && (
+                        <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 px-2 py-0.5 rounded-full">לפגישה</span>
+                      )}
+                      {(patient as any).parent_patient_id && (
+                        <span className="text-xs bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                          ← {patients.find(p => p.id === (patient as any).parent_patient_id)?.name || "מוסד"}
+                        </span>
+                      )}
+                      <span className="text-sm text-muted-foreground" dir="ltr">{patient.phone}</span>
+                      <span className="text-sm text-muted-foreground">₪{patient.session_price}</span>
                     </div>
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" onClick={() => openEdit(patient)}>

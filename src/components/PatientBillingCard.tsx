@@ -23,8 +23,9 @@ interface Patient {
 
 interface PatientBilling {
   patient: Patient;
-  sessions: { date: string; summary: string; eventId?: string; calendarId?: string }[];
+  sessions: { date: string; summary: string; eventId?: string; calendarId?: string; childPatientName?: string }[];
   total: number;
+  childPatients?: Patient[];
 }
 
 interface Payment {
@@ -174,13 +175,18 @@ const PatientBillingCard = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-lg">{billing.patient.name}</span>
+            {(billing.patient as any).billing_type === "institution" && (
+              <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                מוסד
+              </span>
+            )}
             {isPaid && (
               <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
                 שולם ✓
               </span>
             )}
             <span className="text-sm text-muted-foreground">
-              ({billing.sessions.length} פגישות)
+              ({billing.sessions.length} פגישות{billing.childPatients && billing.childPatients.length > 0 ? ` · ${billing.childPatients.length} מטופלים` : ""})
             </span>
           </div>
           <span className="font-bold text-lg">₪{billing.total}</span>
@@ -267,7 +273,12 @@ const PatientBillingCard = ({
                 key={i}
                 className="flex items-center justify-between text-sm py-1 px-2 rounded bg-accent/30 border-r-4 border-r-primary"
               >
-                <span>{session.summary}</span>
+                <div className="flex items-center gap-2">
+                  <span>{session.summary}</span>
+                  {(session as any).childPatientName && (
+                    <span className="text-xs text-muted-foreground">({(session as any).childPatientName})</span>
+                  )}
+                </div>
                 <span className="text-muted-foreground" dir="ltr">
                   {session.date}
                 </span>
