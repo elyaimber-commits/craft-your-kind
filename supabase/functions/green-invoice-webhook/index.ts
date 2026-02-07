@@ -190,6 +190,20 @@ serve(async (req) => {
         const patientNameLower = patient.name.trim().toLowerCase();
         let colorUpdated = 0;
 
+        // Get aliases for this patient to match calendar events by alias too
+        const { data: aliasData } = await supabase
+          .from('event_aliases')
+          .select('event_name')
+          .eq('patient_id', patient.id);
+        
+        const aliasNames = new Set<string>([patientNameLower]);
+        if (aliasData) {
+          for (const a of aliasData) {
+            aliasNames.add(a.event_name.trim().toLowerCase());
+          }
+        }
+        console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
+
         for (const cal of calendars) {
           const eventsRes = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
@@ -199,9 +213,9 @@ serve(async (req) => {
           const eventsData = await eventsRes.json();
           const events = eventsData.items || [];
 
-          // Find yellow events (colorId "5") matching patient name
+          // Find yellow events (colorId "5") matching patient name OR any alias
           const matchingEvents = events.filter((e: any) =>
-            e.colorId === "5" && (e.summary || "").trim().toLowerCase() === patientNameLower
+            e.colorId === "5" && aliasNames.has((e.summary || "").trim().toLowerCase())
           );
 
           for (const event of matchingEvents) {
