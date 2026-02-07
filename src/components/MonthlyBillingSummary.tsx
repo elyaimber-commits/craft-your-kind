@@ -31,6 +31,15 @@ interface MonthlyBillingSummaryProps {
 
 const YELLOW_COLOR_IDS = ["5"];
 
+/** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics */
+const normalizeName = (name: string): string =>
+  name
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, ""); // strip Hebrew diacritics (nikud)
+
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
@@ -77,8 +86,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .map((patient) => {
       const matchingSessions = yellowEvents
         .filter((event) => {
-          const eventName = (event.summary || "").trim().toLowerCase();
-          const patientName = patient.name.trim().toLowerCase();
+          const eventName = normalizeName(event.summary || "");
+          const patientName = normalizeName(patient.name);
           return eventName === patientName;
         })
         .map((event) => {
@@ -105,10 +114,13 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .sort((a, b) => b.total - a.total);
 
   const unmatchedEvents = yellowEvents.filter((e) => !matchedEventIds.has(e.id));
+  // Group unmatched events and check against existing patients by normalized name
+  const patientNormalizedNames = new Set(patients.map((p) => normalizeName(p.name)));
   const unmatchedByName: Record<string, number> = {};
   unmatchedEvents.forEach((e) => {
     const name = (e.summary || "").trim();
-    if (name) {
+    const normalized = normalizeName(name);
+    if (name && !patientNormalizedNames.has(normalized)) {
       unmatchedByName[name] = (unmatchedByName[name] || 0) + 1;
     }
   });
