@@ -27,6 +27,7 @@ interface Session {
   eventId?: string;
   calendarId?: string;
   childPatientName?: string;
+  sessionPrice?: number;
 }
 
 interface PatientBilling {
@@ -401,7 +402,7 @@ const PatientBillingCard = ({
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-muted-foreground">₪{billing.patient.session_price}</span>
+                    <span className="text-muted-foreground">₪{session.sessionPrice ?? billing.patient.session_price}</span>
                     <span className="text-muted-foreground" dir="ltr">
                       {session.date}
                     </span>
@@ -411,7 +412,7 @@ const PatientBillingCard = ({
             })}
             <div className="flex justify-between pt-2 font-medium border-t mt-2">
               <span>
-                {billing.sessions.length} × ₪{billing.patient.session_price}
+                {(billing.patient as any).billing_type === "institution" ? `${billing.sessions.length} פגישות (מחירים שונים)` : `${billing.sessions.length} × ₪${billing.patient.session_price}`}
               </span>
               <div className="flex gap-3">
                 {somePaid && !allPaid && (
