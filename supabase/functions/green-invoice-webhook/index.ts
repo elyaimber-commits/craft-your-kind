@@ -60,10 +60,40 @@ serve(async (req) => {
 
     console.log(`Found patient: ${patient.name} (${patient.id})`);
 
-    // Determine the month from document date or current date
-    const docDate = payload?.documentDate || payload?.createdAt || new Date().toISOString();
-    const date = new Date(docDate);
-    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    // Parse month from document description/remarks (e.g. "יעל ונר ינואר")
+    // or fall back to document date
+    const hebrewMonths: Record<string, number> = {
+      'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'אפריל': 4,
+      'מאי': 5, 'יוני': 6, 'יולי': 7, 'אוגוסט': 8,
+      'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
+    };
+
+    let month = '';
+    const description = payload?.description || payload?.remarks || payload?.comment || '';
+    console.log(`Document description: "${description}"`);
+
+    // Try to find a Hebrew month name in the description
+    for (const [monthName, monthNum] of Object.entries(hebrewMonths)) {
+      if (description.includes(monthName)) {
+        // Determine the year: if the month is in the future relative to now, use previous year
+        const now = new Date();
+        let year = now.getFullYear();
+        if (monthNum > now.getMonth() + 1) {
+          year--; // e.g., mentioning "דצמבר" in January means last year's December
+        }
+        month = `${year}-${String(monthNum).padStart(2, '0')}`;
+        console.log(`Parsed month from description: ${monthName} → ${month}`);
+        break;
+      }
+    }
+
+    // Fallback to document date if no month found in description
+    if (!month) {
+      const docDate = payload?.documentDate || payload?.createdAt || new Date().toISOString();
+      const date = new Date(docDate);
+      month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      console.log(`Using document date for month: ${month}`);
+    }
 
     // Check if payment record exists for this patient+month
     const { data: existingPayment } = await supabase
@@ -143,9 +173,12 @@ serve(async (req) => {
       }
 
       if (accessToken) {
-        // Find yellow events matching this patient's name in the current month
-        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
-        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        // Find yellow events matching this patient's name in the target month
+        const [yearStr, monthStr] = month.split('-');
+        const monthYear = parseInt(yearStr);
+        const monthIdx = parseInt(monthStr) - 1;
+        const startOfMonth = new Date(monthYear, monthIdx, 1).toISOString();
+        const endOfMonth = new Date(monthYear, monthIdx + 1, 0, 23, 59, 59).toISOString();
 
         // Get all calendars
         const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
