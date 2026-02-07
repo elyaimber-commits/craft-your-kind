@@ -95,6 +95,11 @@ serve(async (req) => {
       console.log(`Using document date for month: ${month}`);
     }
 
+    // Extract amount and receipt number from payload
+    const amount = payload?.total || 0;
+    const receiptNumber = payload?.number ? String(payload.number) : null;
+    console.log(`Payment amount: ${amount}, receipt number: ${receiptNumber}`);
+
     // Check if this patient is an institution (parent) - if so, also mark children as paid
     const { data: patientFull } = await supabase
       .from('patients')
