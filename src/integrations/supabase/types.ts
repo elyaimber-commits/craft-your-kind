@@ -99,36 +99,50 @@ export type Database = {
       }
       patients: {
         Row: {
+          billing_type: string
           created_at: string
           green_invoice_customer_id: string | null
           id: string
           name: string
+          parent_patient_id: string | null
           phone: string
           session_price: number
           therapist_id: string
           updated_at: string
         }
         Insert: {
+          billing_type?: string
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
           name: string
+          parent_patient_id?: string | null
           phone: string
           session_price?: number
           therapist_id: string
           updated_at?: string
         }
         Update: {
+          billing_type?: string
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
           name?: string
+          parent_patient_id?: string | null
           phone?: string
           session_price?: number
           therapist_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_parent_patient_id_fkey"
+            columns: ["parent_patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
