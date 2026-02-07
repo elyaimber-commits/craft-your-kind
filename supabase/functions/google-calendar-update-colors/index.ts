@@ -46,7 +46,8 @@ serve(async (req) => {
 
     // Parse request body - expects eventIds array with calendar info
     const { eventIds, colorId } = await req.json();
-    const targetColorId = colorId || DEFAULT_PAID_COLOR_ID;
+    // colorId can be null to reset to default calendar color
+    const targetColorId = colorId === null ? null : (colorId || DEFAULT_PAID_COLOR_ID);
     // eventIds format: [{ calendarId, eventId }, ...]
 
     if (!eventIds || !Array.isArray(eventIds) || eventIds.length === 0) {
@@ -103,7 +104,11 @@ serve(async (req) => {
         .eq('user_id', userId);
     }
 
-    // Update each event's color to purple
+    // Update each event's color
+    const patchBody = targetColorId === null
+      ? { colorId: null } // Reset to default calendar color
+      : { colorId: targetColorId };
+
     const results = await Promise.allSettled(
       eventIds.map(async ({ calendarId, eventId }: { calendarId: string; eventId: string }) => {
         const res = await fetch(
@@ -114,7 +119,7 @@ serve(async (req) => {
               Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ colorId: targetColorId }),
+            body: JSON.stringify(patchBody),
           }
         );
         if (!res.ok) {

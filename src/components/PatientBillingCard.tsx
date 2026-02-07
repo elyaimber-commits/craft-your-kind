@@ -137,7 +137,7 @@ const PatientBillingCard = ({
               headers: { Authorization: `Bearer ${authSession.access_token}` },
               body: {
                 eventIds: [{ eventId: session.eventId, calendarId: session.calendarId }],
-                colorId: isPaidNow ? "5" : "3", // toggle: paid→yellow, unpaid→purple
+                colorId: isPaidNow ? null : "3", // toggle: paid→default(no color), unpaid→purple
               },
             });
           }
@@ -236,7 +236,7 @@ const PatientBillingCard = ({
           if (session) {
             await supabase.functions.invoke("google-calendar-update-colors", {
               headers: { Authorization: `Bearer ${session.access_token}` },
-              body: { eventIds, colorId: markingAsPaid ? "3" : "5" },
+              body: { eventIds, colorId: markingAsPaid ? "3" : null },
             });
           }
         } catch (e) {
