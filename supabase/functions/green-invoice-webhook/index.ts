@@ -95,45 +95,65 @@ serve(async (req) => {
       console.log(`Using document date for month: ${month}`);
     }
 
-    // Check if payment record exists for this patient+month
-    const { data: existingPayment } = await supabase
-      .from('payments')
-      .select('id')
-      .eq('patient_id', patient.id)
-      .eq('month', month)
+    // Check if this patient is an institution (parent) - if so, also mark children as paid
+    const { data: patientFull } = await supabase
+      .from('patients')
+      .select('billing_type')
+      .eq('id', patient.id)
       .single();
 
-    const amount = payload?.amount || 0;
-    const receiptNumber = payload?.number?.toString() || null;
+    const isInstitution = patientFull?.billing_type === 'institution';
 
-    if (existingPayment) {
-      // Update existing payment
-      await supabase
-        .from('payments')
-        .update({
-          paid: true,
-          paid_at: new Date().toISOString(),
-          amount: amount > 0 ? amount : undefined,
-          receipt_number: receiptNumber,
-        })
-        .eq('id', existingPayment.id);
-    } else {
-      // Create new payment record
-      await supabase
-        .from('payments')
-        .insert({
-          therapist_id: patient.therapist_id,
-          patient_id: patient.id,
-          month,
-          amount: amount > 0 ? amount : 0,
-          session_count: 0,
-          paid: true,
-          paid_at: new Date().toISOString(),
-          receipt_number: receiptNumber,
-        });
+    // Get child patients if institution
+    let childPatientIds: string[] = [];
+    if (isInstitution) {
+      const { data: children } = await supabase
+        .from('patients')
+        .select('id, name')
+        .eq('parent_patient_id', patient.id);
+      childPatientIds = (children || []).map((c: any) => c.id);
+      console.log(`Institution ${patient.name} has ${childPatientIds.length} children: ${(children || []).map((c: any) => c.name).join(', ')}`);
     }
 
-    console.log(`Payment marked as paid for ${patient.name}, month ${month}`);
+    // All patient IDs to mark as paid (parent + children for institutions)
+    const allPatientIds = [patient.id, ...childPatientIds];
+
+    for (const pid of allPatientIds) {
+      // Check if payment record exists for this patient+month
+      const { data: existingPayment } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('patient_id', pid)
+        .eq('month', month)
+        .single();
+
+      if (existingPayment) {
+        await supabase
+          .from('payments')
+          .update({
+            paid: true,
+            paid_at: new Date().toISOString(),
+            amount: pid === patient.id && amount > 0 ? amount : undefined,
+            receipt_number: pid === patient.id ? receiptNumber : undefined,
+          })
+          .eq('id', existingPayment.id);
+      } else {
+        await supabase
+          .from('payments')
+          .insert({
+            therapist_id: patient.therapist_id,
+            patient_id: pid,
+            month,
+            amount: pid === patient.id && amount > 0 ? amount : 0,
+            session_count: 0,
+            paid: true,
+            paid_at: new Date().toISOString(),
+            receipt_number: pid === patient.id ? receiptNumber : null,
+          });
+      }
+    }
+
+    console.log(`Payment marked as paid for ${patient.name}${isInstitution ? ` + ${childPatientIds.length} children` : ''}, month ${month}`);
 
     // Now update Google Calendar event colors to purple (paid)
     // Get the therapist's Google tokens
@@ -190,11 +210,12 @@ serve(async (req) => {
         const patientNameLower = patient.name.trim().toLowerCase();
         let colorUpdated = 0;
 
-        // Get aliases for this patient to match calendar events by alias too
+        // Get aliases for this patient (and children if institution) to match calendar events
+        const aliasPatientIds = [patient.id, ...childPatientIds];
         const { data: aliasData } = await supabase
           .from('event_aliases')
           .select('event_name')
-          .eq('patient_id', patient.id);
+          .in('patient_id', aliasPatientIds);
         
         const aliasNames = new Set<string>([patientNameLower]);
         if (aliasData) {
@@ -202,6 +223,20 @@ serve(async (req) => {
             aliasNames.add(a.event_name.trim().toLowerCase());
           }
         }
+
+        // Also add child patient names
+        if (isInstitution) {
+          const { data: childPatients } = await supabase
+            .from('patients')
+            .select('name')
+            .in('id', childPatientIds);
+          if (childPatients) {
+            for (const c of childPatients) {
+              aliasNames.add(c.name.trim().toLowerCase());
+            }
+          }
+        }
+
         console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
 
         for (const cal of calendars) {
