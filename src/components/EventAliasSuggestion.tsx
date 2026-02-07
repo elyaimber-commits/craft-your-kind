@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Link2, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
+import { Link2, UserPlus, ChevronDown, ChevronUp, EyeOff } from "lucide-react";
 
 interface Patient {
   id: string;
@@ -53,6 +53,23 @@ const EventAliasSuggestion = ({
     },
   });
 
+  const ignoreMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("ignored_calendar_events").insert({
+        therapist_id: user!.id,
+        event_name: eventName,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ignored-calendar-events"] });
+      toast({ title: `"${eventName}" הוסתר מהרשימה` });
+    },
+    onError: (error: any) => {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    },
+  });
+
   const addPatientMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("patients").insert({
@@ -84,6 +101,17 @@ const EventAliasSuggestion = ({
             ({sessionCount} פגישות ביומן)
           </span>
         </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => ignoreMutation.mutate()}
+          disabled={ignoreMutation.isPending}
+          className="h-7 text-xs text-muted-foreground"
+          title="אל תשייך בכלל"
+        >
+          <EyeOff className="ml-1 h-3 w-3" />
+          התעלם
+        </Button>
       </div>
 
       {/* Suggested patients for linking */}

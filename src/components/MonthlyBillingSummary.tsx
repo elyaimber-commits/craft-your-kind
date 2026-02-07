@@ -134,11 +134,26 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  const { data: ignoredEvents = [] } = useQuery({
+    queryKey: ["ignored-calendar-events"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ignored_calendar_events")
+        .select("event_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Build alias map: normalized event name -> patient_id
   const aliasMap = new Map<string, string>();
   aliases.forEach((a: any) => {
     aliasMap.set(normalizeName(a.event_name), a.patient_id);
   });
+
+  // Build ignored set
+  const ignoredSet = new Set(ignoredEvents.map((e: any) => normalizeName(e.event_name)));
 
   const events = calendarData?.events || [];
   const billingEvents = events.filter((e) => BILLING_COLOR_IDS.includes(e.colorId || ""));
@@ -216,10 +231,12 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     }
   });
 
-  // Filter out event names that are already linked via alias
+  // Filter out event names that are already linked via alias or ignored
   const filteredUnmatched = Object.entries(unmatchedByName).filter(([name]) => {
     const matched = findMatchingPatient(name, patients, aliasMap);
-    return !matched;
+    if (matched) return false;
+    if (ignoredSet.has(normalizeName(name))) return false;
+    return true;
   });
 
   const generateWhatsAppMessage = (billing: { patient: Patient; sessions: { date: string }[]; total: number }) => {
