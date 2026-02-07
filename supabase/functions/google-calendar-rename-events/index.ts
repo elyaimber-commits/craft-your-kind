@@ -110,16 +110,15 @@ serve(async (req) => {
     }
 
     const calendars = calListData.items || [];
-    const now = new Date().toISOString();
 
-    // Search for future events with the old name across all calendars
+    // Search for ALL events (past and future) with the old name across all calendars
     let updatedCount = 0;
     let failedCount = 0;
 
     for (const cal of calendars) {
       try {
         const searchRes = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&timeMin=${now}&singleEvents=true&maxResults=100`,
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!searchRes.ok) continue;
