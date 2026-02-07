@@ -46,6 +46,7 @@ const Dashboard = () => {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const oldName = editingPatient?.name;
       if (editingPatient) {
         const { error } = await supabase
           .from("patients")
@@ -58,11 +59,45 @@ const Dashboard = () => {
           .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null });
         if (error) throw error;
       }
+
+      // If name changed, update calendar events automatically
+      if (editingPatient && oldName && oldName !== name) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            // Rename events with the old patient name
+            await supabase.functions.invoke("google-calendar-rename-events", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: { oldName, newName: name },
+            });
+
+            // Also rename events matching any aliases for this patient
+            const { data: aliases } = await supabase
+              .from("event_aliases")
+              .select("event_name")
+              .eq("patient_id", editingPatient.id);
+
+            if (aliases) {
+              for (const alias of aliases) {
+                if (alias.event_name !== oldName) {
+                  await supabase.functions.invoke("google-calendar-rename-events", {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                    body: { oldName: alias.event_name, newName: name },
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to update calendar names:", e);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
       resetForm();
-      toast({ title: editingPatient ? "המטופל עודכן" : "מטופל נוסף בהצלחה" });
+      toast({ title: editingPatient ? "המטופל עודכן והיומן עודכן" : "מטופל נוסף בהצלחה" });
     },
     onError: (error: any) => {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
