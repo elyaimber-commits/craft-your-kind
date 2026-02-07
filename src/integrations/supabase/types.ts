@@ -76,6 +76,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ignored_calendar_events: {
+        Row: {
+          created_at: string
+          event_name: string
+          id: string
+          therapist_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          id?: string
+          therapist_id: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          id?: string
+          therapist_id?: string
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           created_at: string
