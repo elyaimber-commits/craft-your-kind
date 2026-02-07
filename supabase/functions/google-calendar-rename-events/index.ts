@@ -120,10 +120,13 @@ serve(async (req) => {
     let updatedCount = 0;
     let failedCount = 0;
 
+    // Search past events too (go back 2 years)
+    const timeMin = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
+
     const calendarResults = await Promise.allSettled(
       writableCalendars.map(async (cal: any) => {
         const searchRes = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500`,
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500&timeMin=${encodeURIComponent(timeMin)}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!searchRes.ok) return [];
