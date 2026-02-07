@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, ChevronRight, ChevronLeft } from "lucide-react";
 import { useState } from "react";
-import NewPatientSuggestion from "@/components/NewPatientSuggestion";
 import PatientBillingCard from "@/components/PatientBillingCard";
+import EventAliasSuggestion from "@/components/EventAliasSuggestion";
 
 interface Patient {
   id: string;
@@ -40,7 +40,48 @@ const normalizeName = (name: string): string =>
     .replace(/\s+/g, " ")
     .toLowerCase()
     .replace(/[\u0591-\u05C7]/g, "") // strip Hebrew diacritics (nikud)
-    .replace(/(.)\1+/g, "$1"); // collapse duplicate consecutive characters (וו→ו, יי→י etc.)
+    .replace(/(.)\1+/g, "$1"); // collapse duplicate consecutive characters
+
+/** Find matching patient: exact first, then check aliases */
+const findMatchingPatient = (
+  eventName: string,
+  patients: Patient[],
+  aliasMap: Map<string, string> // normalized event name -> patient id
+): Patient | null => {
+  const normalizedEvent = normalizeName(eventName);
+
+  // Priority 1: Exact match after normalization
+  for (const patient of patients) {
+    if (normalizeName(patient.name) === normalizedEvent) return patient;
+  }
+
+  // Priority 2: Check saved aliases
+  const aliasPatientId = aliasMap.get(normalizedEvent);
+  if (aliasPatientId) {
+    return patients.find((p) => p.id === aliasPatientId) || null;
+  }
+
+  return null;
+};
+
+/** Find patients that partially match an event name (for suggestions) */
+const findPartialMatches = (eventName: string, patients: Patient[]): Patient[] => {
+  const normalizedEvent = normalizeName(eventName);
+  if (normalizedEvent.length < 2) return [];
+
+  return patients.filter((patient) => {
+    const normalizedPatient = normalizeName(patient.name);
+    // Check if either contains the other, or shares a word
+    const eventWords = normalizedEvent.split(" ");
+    const patientWords = normalizedPatient.split(" ");
+    return (
+      normalizedPatient.includes(normalizedEvent) ||
+      normalizedEvent.includes(normalizedPatient) ||
+      eventWords.some((w) => w.length >= 2 && patientWords.includes(w)) ||
+      patientWords.some((w) => w.length >= 2 && eventWords.includes(w))
+    );
+  });
+};
 
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
@@ -80,18 +121,35 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  const { data: aliases = [] } = useQuery({
+    queryKey: ["event-aliases"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_aliases")
+        .select("*");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Build alias map: normalized event name -> patient_id
+  const aliasMap = new Map<string, string>();
+  aliases.forEach((a: any) => {
+    aliasMap.set(normalizeName(a.event_name), a.patient_id);
+  });
+
   const events = calendarData?.events || [];
   const billingEvents = events.filter((e) => BILLING_COLOR_IDS.includes(e.colorId || ""));
-  const yellowEvents = events.filter((e) => YELLOW_COLOR_IDS.includes(e.colorId || ""));
+  const allEvents = events; // All events for showing unmatched (not just yellow)
   const matchedEventIds = new Set<string>();
 
   const billingData = patients
     .map((patient) => {
       const matchingSessions = billingEvents
         .filter((event) => {
-          const eventName = normalizeName(event.summary || "");
-          const patientName = normalizeName(patient.name);
-          return eventName === patientName;
+          const matched = findMatchingPatient(event.summary || "", [patient], aliasMap);
+          return matched?.id === patient.id;
         })
         .map((event) => {
           matchedEventIds.add(event.id);
@@ -116,16 +174,44 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
 
-  const unmatchedEvents = yellowEvents.filter((e) => !matchedEventIds.has(e.id));
-  // Group unmatched events and check against existing patients by normalized name
-  const patientNormalizedNames = new Set(patients.map((p) => normalizeName(p.name)));
-  const unmatchedByName: Record<string, number> = {};
-  unmatchedEvents.forEach((e) => {
+  // Find unmatched billing events (yellow/purple that didn't match any patient)
+  const unmatchedBillingEvents = billingEvents.filter((e) => !matchedEventIds.has(e.id));
+
+  // Find ALL unmatched events (any color) for new patient discovery
+  const allMatchedIds = new Set(matchedEventIds);
+  const unmatchedAllEvents = allEvents.filter(
+    (e) => !allMatchedIds.has(e.id) && (e.summary || "").trim().length > 0
+  );
+
+  // Group unmatched events by name
+  const unmatchedByName: Record<string, { count: number; isBilling: boolean }> = {};
+  unmatchedBillingEvents.forEach((e) => {
     const name = (e.summary || "").trim();
-    const normalized = normalizeName(name);
-    if (name && !patientNormalizedNames.has(normalized)) {
-      unmatchedByName[name] = (unmatchedByName[name] || 0) + 1;
+    if (name) {
+      if (!unmatchedByName[name]) unmatchedByName[name] = { count: 0, isBilling: true };
+      unmatchedByName[name].count++;
     }
+  });
+
+  // Also add non-billing unmatched events (for future patient discovery)
+  unmatchedAllEvents.forEach((e) => {
+    const name = (e.summary || "").trim();
+    if (name && !unmatchedByName[name]) {
+      // Check if this event name matches any patient (via exact or alias)
+      const matched = findMatchingPatient(name, patients, aliasMap);
+      if (!matched) {
+        unmatchedByName[name] = { count: 0, isBilling: false };
+      }
+    }
+    if (name && unmatchedByName[name] && !BILLING_COLOR_IDS.includes(e.colorId || "")) {
+      unmatchedByName[name].count++;
+    }
+  });
+
+  // Filter out event names that are already linked via alias
+  const filteredUnmatched = Object.entries(unmatchedByName).filter(([name]) => {
+    const matched = findMatchingPatient(name, patients, aliasMap);
+    return !matched;
   });
 
   const generateWhatsAppMessage = (billing: { patient: Patient; sessions: { date: string }[]; total: number }) => {
@@ -162,11 +248,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             סיכום חיוב
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setMonthOffset(o => o - 1)}>
+            <Button variant="ghost" size="icon" onClick={() => setMonthOffset((o) => o - 1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium min-w-[100px] text-center">{currentMonthName}</span>
-            <Button variant="ghost" size="icon" onClick={() => setMonthOffset(o => o + 1)} disabled={monthOffset >= 0}>
+            <Button variant="ghost" size="icon" onClick={() => setMonthOffset((o) => o + 1)} disabled={monthOffset >= 0}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
@@ -178,7 +264,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {billingData.length === 0 && Object.keys(unmatchedByName).length === 0 ? (
+        {billingData.length === 0 && filteredUnmatched.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
             אין פגישות שסומנו כ"בוצע" (צהוב) החודש
           </p>
@@ -200,13 +286,19 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               />
             ))}
 
-            {Object.keys(unmatchedByName).length > 0 && (
+            {filteredUnmatched.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  מטופלים חדשים שזוהו ביומן:
+                  אירועים ביומן שלא שויכו למטופל:
                 </h3>
-                {Object.entries(unmatchedByName).map(([name, count]) => (
-                  <NewPatientSuggestion key={name} name={name} sessionCount={count} />
+                {filteredUnmatched.map(([name, info]) => (
+                  <EventAliasSuggestion
+                    key={name}
+                    eventName={name}
+                    sessionCount={info.count}
+                    suggestedPatients={findPartialMatches(name, patients)}
+                    allPatients={patients}
+                  />
                 ))}
               </div>
             )}

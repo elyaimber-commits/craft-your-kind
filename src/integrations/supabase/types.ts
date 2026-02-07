@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      event_aliases: {
+        Row: {
+          created_at: string
+          event_name: string
+          id: string
+          patient_id: string
+          therapist_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          id?: string
+          patient_id: string
+          therapist_id: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          id?: string
+          patient_id?: string
+          therapist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_aliases_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_tokens: {
         Row: {
           access_token: string
