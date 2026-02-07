@@ -32,14 +32,15 @@ interface MonthlyBillingSummaryProps {
 const YELLOW_COLOR_IDS = ["5"];
 const BILLING_COLOR_IDS = ["5", "3"]; // Yellow (unpaid) + Purple/Grape (paid)
 
-/** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics */
+/** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics, collapse duplicate Hebrew letters */
 const normalizeName = (name: string): string =>
   name
     .normalize("NFC")
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase()
-    .replace(/[\u0591-\u05C7]/g, ""); // strip Hebrew diacritics (nikud)
+    .replace(/[\u0591-\u05C7]/g, "") // strip Hebrew diacritics (nikud)
+    .replace(/(.)\1+/g, "$1"); // collapse duplicate consecutive characters (וו→ו, יי→י etc.)
 
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
