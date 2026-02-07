@@ -25,7 +25,7 @@ serve(async (req) => {
 
     // Extract client ID from the webhook payload
     // Green Invoice document structure has client.id
-    const clientId = payload?.client?.id;
+    const clientId = payload?.recipient?.id || payload?.client?.id;
     if (!clientId) {
       console.log("No client ID in webhook payload, ignoring");
       return new Response(JSON.stringify({ ok: true, message: "No client ID, ignored" }), {
