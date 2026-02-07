@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, ChevronRight, ChevronLeft } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
 
@@ -88,8 +88,10 @@ const findPartialMatches = (eventName: string, patients: Patient[]): Patient[] =
 
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
   selectedDate.setMonth(selectedDate.getMonth() + monthOffset);
@@ -230,6 +232,67 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     })
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
+
+  // === Auto-sync purple calendar events → paid status in DB ===
+  useEffect(() => {
+    if (!user || !calendarData?.events || syncedMonthsRef.current.has(currentMonth)) return;
+    
+    const purpleEventsByPatient = new Map<string, { count: number; total: number }>();
+    
+    billingData.forEach((billing) => {
+      const purpleSessions = billing.sessions.filter((s) => {
+        // Find the original event to check its colorId
+        const event = events.find((e) => e.id === s.eventId);
+        return event?.colorId === "3"; // purple = paid
+      });
+      
+      if (purpleSessions.length > 0) {
+        const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
+        const alreadyPaid = existingPayment?.paid === true;
+        
+        if (!alreadyPaid) {
+          purpleEventsByPatient.set(billing.patient.id, {
+            count: purpleSessions.length,
+            total: purpleSessions.length * billing.patient.session_price,
+          });
+        }
+      }
+    });
+    
+    if (purpleEventsByPatient.size === 0) {
+      syncedMonthsRef.current.add(currentMonth);
+      return;
+    }
+    
+    // Auto-create/update payment records for purple events
+    const syncPayments = async () => {
+      for (const [patientId, info] of purpleEventsByPatient) {
+        const existingPayment = payments.find((p) => p.patient_id === patientId);
+        
+        if (existingPayment) {
+          await supabase
+            .from("payments")
+            .update({ paid: true, paid_at: new Date().toISOString(), amount: info.total, session_count: info.count })
+            .eq("id", existingPayment.id);
+        } else {
+          await supabase.from("payments").insert({
+            therapist_id: user.id,
+            patient_id: patientId,
+            month: currentMonth,
+            amount: info.total,
+            session_count: info.count,
+            paid: true,
+            paid_at: new Date().toISOString(),
+          });
+        }
+      }
+      
+      syncedMonthsRef.current.add(currentMonth);
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+    };
+    
+    syncPayments();
+  }, [calendarData, payments, billingData, currentMonth, user]);
 
   // Find unmatched billing events (yellow/purple that didn't match any patient)
   const unmatchedBillingEvents = billingEvents.filter((e) => !matchedEventIds.has(e.id));
