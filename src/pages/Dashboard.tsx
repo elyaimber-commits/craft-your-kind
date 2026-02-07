@@ -17,6 +17,7 @@ interface Patient {
   name: string;
   phone: string;
   session_price: number;
+  green_invoice_customer_id?: string | null;
 }
 
 const Dashboard = () => {
@@ -28,6 +29,7 @@ const Dashboard = () => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [price, setPrice] = useState("");
+  const [greenInvoiceId, setGreenInvoiceId] = useState("");
   const [showPatients, setShowPatients] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
@@ -47,13 +49,13 @@ const Dashboard = () => {
       if (editingPatient) {
         const { error } = await supabase
           .from("patients")
-          .update({ name, phone, session_price: parseFloat(price) })
+          .update({ name, phone, session_price: parseFloat(price), green_invoice_customer_id: greenInvoiceId || null })
           .eq("id", editingPatient.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("patients")
-          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id });
+          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null });
         if (error) throw error;
       }
     },
@@ -82,6 +84,7 @@ const Dashboard = () => {
     setName("");
     setPhone("");
     setPrice("");
+    setGreenInvoiceId("");
     setEditingPatient(null);
     setDialogOpen(false);
   };
@@ -91,6 +94,7 @@ const Dashboard = () => {
     setName(patient.name);
     setPhone(patient.phone);
     setPrice(patient.session_price.toString());
+    setGreenInvoiceId(patient.green_invoice_customer_id || "");
     setDialogOpen(true);
   };
 
@@ -152,6 +156,10 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <Label>מחיר לטיפול (₪)</Label>
                       <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required dir="ltr" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>מזהה לקוח בחשבונית ירוקה (אופציונלי)</Label>
+                      <Input value={greenInvoiceId} onChange={(e) => setGreenInvoiceId(e.target.value)} placeholder="מזהה לקוח מחשבונית ירוקה" dir="ltr" />
                     </div>
                     <Button type="submit" className="w-full" disabled={saveMutation.isPending}>
                       {saveMutation.isPending ? "שומר..." : "שמור"}

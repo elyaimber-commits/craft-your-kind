@@ -47,6 +47,7 @@ export type Database = {
       patients: {
         Row: {
           created_at: string
+          green_invoice_customer_id: string | null
           id: string
           name: string
           phone: string
@@ -56,6 +57,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          green_invoice_customer_id?: string | null
           id?: string
           name: string
           phone: string
@@ -65,6 +67,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          green_invoice_customer_id?: string | null
           id?: string
           name?: string
           phone?: string
