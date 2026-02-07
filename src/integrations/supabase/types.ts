@@ -153,6 +153,7 @@ export type Database = {
           notes: string | null
           paid: boolean
           paid_at: string | null
+          paid_event_ids: string[] | null
           patient_id: string
           receipt_number: string | null
           session_count: number
@@ -167,6 +168,7 @@ export type Database = {
           notes?: string | null
           paid?: boolean
           paid_at?: string | null
+          paid_event_ids?: string[] | null
           patient_id: string
           receipt_number?: string | null
           session_count?: number
@@ -181,6 +183,7 @@ export type Database = {
           notes?: string | null
           paid?: boolean
           paid_at?: string | null
+          paid_event_ids?: string[] | null
           patient_id?: string
           receipt_number?: string | null
           session_count?: number

@@ -233,56 +233,67 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
 
-  // === Auto-sync purple calendar events → paid status in DB ===
+  // === Auto-sync purple calendar events → paid status in DB (per-session) ===
   useEffect(() => {
     if (!user || !calendarData?.events || syncedMonthsRef.current.has(currentMonth)) return;
     
-    const purpleEventsByPatient = new Map<string, { count: number; total: number }>();
+    const updates: { patientId: string; purpleEventIds: string[]; total: number }[] = [];
     
     billingData.forEach((billing) => {
       const purpleSessions = billing.sessions.filter((s) => {
-        // Find the original event to check its colorId
         const event = events.find((e) => e.id === s.eventId);
-        return event?.colorId === "3"; // purple = paid
+        return event?.colorId === "3" && s.eventId;
       });
       
       if (purpleSessions.length > 0) {
         const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
-        const alreadyPaid = existingPayment?.paid === true;
+        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
+        const newPurpleIds = purpleSessions
+          .map(s => s.eventId!)
+          .filter(id => !existingPaidIds.has(id));
         
-        if (!alreadyPaid) {
-          purpleEventsByPatient.set(billing.patient.id, {
-            count: purpleSessions.length,
-            total: purpleSessions.length * billing.patient.session_price,
+        if (newPurpleIds.length > 0) {
+          const allPaidIds = [...Array.from(existingPaidIds), ...newPurpleIds] as string[];
+          updates.push({
+            patientId: billing.patient.id,
+            purpleEventIds: allPaidIds,
+            total: allPaidIds.length * billing.patient.session_price,
           });
         }
       }
     });
     
-    if (purpleEventsByPatient.size === 0) {
+    if (updates.length === 0) {
       syncedMonthsRef.current.add(currentMonth);
       return;
     }
     
-    // Auto-create/update payment records for purple events
     const syncPayments = async () => {
-      for (const [patientId, info] of purpleEventsByPatient) {
-        const existingPayment = payments.find((p) => p.patient_id === patientId);
+      for (const update of updates) {
+        const existingPayment = payments.find((p) => p.patient_id === update.patientId);
+        const allPaid = billingData.find(b => b.patient.id === update.patientId)?.sessions.length === update.purpleEventIds.length;
         
         if (existingPayment) {
           await supabase
             .from("payments")
-            .update({ paid: true, paid_at: new Date().toISOString(), amount: info.total, session_count: info.count })
+            .update({
+              paid: allPaid,
+              paid_at: new Date().toISOString(),
+              amount: update.total,
+              session_count: update.purpleEventIds.length,
+              paid_event_ids: update.purpleEventIds,
+            })
             .eq("id", existingPayment.id);
         } else {
           await supabase.from("payments").insert({
             therapist_id: user.id,
-            patient_id: patientId,
+            patient_id: update.patientId,
             month: currentMonth,
-            amount: info.total,
-            session_count: info.count,
-            paid: true,
+            amount: update.total,
+            session_count: update.purpleEventIds.length,
+            paid: allPaid,
             paid_at: new Date().toISOString(),
+            paid_event_ids: update.purpleEventIds,
           });
         }
       }
@@ -357,9 +368,12 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   }
 
   const totalBilled = billingData.reduce((sum, b) => sum + b.total, 0);
-  const totalPaid = billingData
-    .filter((b) => payments.find((p) => p.patient_id === b.patient.id)?.paid)
-    .reduce((sum, b) => sum + b.total, 0);
+  const totalPaid = billingData.reduce((sum, b) => {
+    const payment = payments.find((p) => p.patient_id === b.patient.id);
+    const paidIds = (payment as any)?.paid_event_ids || [];
+    const paidCount = b.sessions.filter(s => s.eventId && paidIds.includes(s.eventId)).length;
+    return sum + paidCount * b.patient.session_price;
+  }, 0);
 
   return (
     <Card>

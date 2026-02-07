@@ -21,9 +21,17 @@ interface Patient {
   session_price: number;
 }
 
+interface Session {
+  date: string;
+  summary: string;
+  eventId?: string;
+  calendarId?: string;
+  childPatientName?: string;
+}
+
 interface PatientBilling {
   patient: Patient;
-  sessions: { date: string; summary: string; eventId?: string; calendarId?: string; childPatientName?: string }[];
+  sessions: Session[];
   total: number;
   childPatients?: Patient[];
 }
@@ -37,6 +45,7 @@ interface Payment {
   paid: boolean;
   paid_at: string | null;
   receipt_number: string | null;
+  paid_event_ids?: string[];
 }
 
 interface PatientBillingCardProps {
@@ -46,7 +55,7 @@ interface PatientBillingCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   generateWhatsAppMessage: (billing: PatientBilling) => string;
-  calendarEventName?: string; // Original name in calendar (when different from patient name)
+  calendarEventName?: string;
 }
 
 const PatientBillingCard = ({
@@ -63,38 +72,114 @@ const PatientBillingCard = ({
   const queryClient = useQueryClient();
   const [generatingReceipt, setGeneratingReceipt] = useState(false);
   const [renamingInCalendar, setRenamingInCalendar] = useState(false);
+  const [togglingSession, setTogglingSession] = useState<string | null>(null);
 
-  const isPaid = payment?.paid || false;
+  const paidEventIds = new Set(payment?.paid_event_ids || []);
+  const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
+  const allPaid = paidCount === billing.sessions.length && billing.sessions.length > 0;
+  const somePaid = paidCount > 0;
+  const paidAmount = paidCount * billing.patient.session_price;
 
-  const markPaidMutation = useMutation({
-    mutationFn: async () => {
-      const markingAsPaid = !isPaid;
-      
+  // Toggle a single session's paid status
+  const toggleSessionPaid = async (session: Session) => {
+    if (!session.eventId || !user) return;
+    setTogglingSession(session.eventId);
+    try {
+      const currentPaidIds = payment?.paid_event_ids || [];
+      const isPaidNow = currentPaidIds.includes(session.eventId);
+      const newPaidIds = isPaidNow
+        ? currentPaidIds.filter(id => id !== session.eventId)
+        : [...currentPaidIds, session.eventId];
+
+      const newPaidCount = newPaidIds.length;
+      const newAmount = newPaidCount * billing.patient.session_price;
+      const newAllPaid = newPaidCount === billing.sessions.length;
+
       if (payment) {
-        const { error } = await supabase
+        await supabase
+          .from("payments")
+          .update({
+            paid: newAllPaid,
+            paid_at: newPaidCount > 0 ? new Date().toISOString() : null,
+            amount: newAmount,
+            session_count: newPaidCount,
+            paid_event_ids: newPaidIds,
+          })
+          .eq("id", payment.id);
+      } else {
+        await supabase.from("payments").insert({
+          therapist_id: user.id,
+          patient_id: billing.patient.id,
+          month: currentMonth,
+          amount: newAmount,
+          session_count: newPaidCount,
+          paid: newAllPaid,
+          paid_at: new Date().toISOString(),
+          paid_event_ids: newPaidIds,
+        });
+      }
+
+      // Update single calendar event color
+      if (session.eventId && session.calendarId) {
+        try {
+          const { data: { session: authSession } } = await supabase.auth.getSession();
+          if (authSession) {
+            await supabase.functions.invoke("google-calendar-update-colors", {
+              headers: { Authorization: `Bearer ${authSession.access_token}` },
+              body: {
+                eventIds: [{ eventId: session.eventId, calendarId: session.calendarId }],
+                colorId: isPaidNow ? "5" : "3", // toggle: paid→yellow, unpaid→purple
+              },
+            });
+          }
+        } catch (e) {
+          console.error("Failed to update calendar color:", e);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setTogglingSession(null);
+    }
+  };
+
+  // Mark all sessions paid/unpaid
+  const markAllMutation = useMutation({
+    mutationFn: async () => {
+      const markingAsPaid = !allPaid;
+      const newPaidIds = markingAsPaid
+        ? billing.sessions.filter(s => s.eventId).map(s => s.eventId!)
+        : [];
+      const newAmount = markingAsPaid ? billing.total : 0;
+      const newCount = markingAsPaid ? billing.sessions.length : 0;
+
+      if (payment) {
+        await supabase
           .from("payments")
           .update({
             paid: markingAsPaid,
             paid_at: markingAsPaid ? new Date().toISOString() : null,
-            amount: billing.total,
-            session_count: billing.sessions.length,
+            amount: newAmount,
+            session_count: newCount,
+            paid_event_ids: newPaidIds,
           })
           .eq("id", payment.id);
-        if (error) throw error;
       } else {
-        const { error } = await supabase.from("payments").insert({
+        await supabase.from("payments").insert({
           therapist_id: user!.id,
           patient_id: billing.patient.id,
           month: currentMonth,
-          amount: billing.total,
-          session_count: billing.sessions.length,
+          amount: newAmount,
+          session_count: newCount,
           paid: true,
           paid_at: new Date().toISOString(),
+          paid_event_ids: newPaidIds,
         });
-        if (error) throw error;
       }
 
-      // Update calendar colors: purple when paid, yellow when unpaid
+      // Update all calendar event colors
       const eventIds = billing.sessions
         .filter(s => s.eventId && s.calendarId)
         .map(s => ({ eventId: s.eventId!, calendarId: s.calendarId! }));
@@ -108,15 +193,15 @@ const PatientBillingCard = ({
               body: { eventIds, colorId: markingAsPaid ? "3" : "5" },
             });
           }
-        } catch (colorError) {
-          console.error("Failed to update calendar colors:", colorError);
+        } catch (e) {
+          console.error("Failed to update calendar colors:", e);
         }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       toast({
-        title: !isPaid ? "סומן כשולם ✓ (והפגישות נצבעו בסגול)" : "סומן כלא שולם",
+        title: !allPaid ? "כל הפגישות סומנו כשולמו ✓" : "בוטל סימון תשלום",
       });
     },
     onError: (error: any) => {
@@ -127,7 +212,7 @@ const PatientBillingCard = ({
   const generateReceipt = () => {
     setGeneratingReceipt(true);
     try {
-      const receiptContent = buildReceiptHTML(billing, currentMonth);
+      const receiptContent = buildReceiptHTML(billing, currentMonth, paidEventIds);
       const printWindow = window.open("", "_blank");
       if (printWindow) {
         printWindow.document.write(receiptContent);
@@ -167,10 +252,14 @@ const PatientBillingCard = ({
   return (
     <div
       className={`rounded-lg border bg-card ${
-        isPaid ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10" : ""
+        allPaid
+          ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10"
+          : somePaid
+          ? "border-yellow-500/30 bg-yellow-50/20 dark:bg-yellow-950/10"
+          : ""
       }`}
     >
-      {/* Main row - always visible */}
+      {/* Main row */}
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -180,16 +269,28 @@ const PatientBillingCard = ({
                 מוסד
               </span>
             )}
-            {isPaid && (
+            {allPaid && (
               <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
                 שולם ✓
+              </span>
+            )}
+            {somePaid && !allPaid && (
+              <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded-full">
+                שולם חלקית ({paidCount}/{billing.sessions.length})
               </span>
             )}
             <span className="text-sm text-muted-foreground">
               ({billing.sessions.length} פגישות{billing.childPatients && billing.childPatients.length > 0 ? ` · ${billing.childPatients.length} מטופלים` : ""})
             </span>
           </div>
-          <span className="font-bold text-lg">₪{billing.total}</span>
+          <div className="text-left">
+            <span className="font-bold text-lg">₪{billing.total}</span>
+            {somePaid && !allPaid && (
+              <div className="text-xs text-muted-foreground">
+                שולם: ₪{paidAmount} · נותר: ₪{billing.total - paidAmount}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Calendar name mismatch notice */}
@@ -215,7 +316,7 @@ const PatientBillingCard = ({
           </div>
         )}
 
-        {/* Action buttons - always visible */}
+        {/* Action buttons */}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -227,16 +328,16 @@ const PatientBillingCard = ({
 
           <Button
             size="sm"
-            variant={isPaid ? "outline" : "secondary"}
-            onClick={() => markPaidMutation.mutate()}
-            disabled={markPaidMutation.isPending}
+            variant={allPaid ? "outline" : "secondary"}
+            onClick={() => markAllMutation.mutate()}
+            disabled={markAllMutation.isPending}
           >
-            {markPaidMutation.isPending ? (
+            {markAllMutation.isPending ? (
               <Loader2 className="ml-1 h-4 w-4 animate-spin" />
             ) : (
               <Check className="ml-1 h-4 w-4" />
             )}
-            {isPaid ? "בטל סימון תשלום" : "סמן כשולם"}
+            {allPaid ? "בטל הכל" : "סמן הכל כשולם"}
           </Button>
 
           <Button
@@ -249,7 +350,6 @@ const PatientBillingCard = ({
             הנפק קבלה
           </Button>
 
-          {/* Expand/collapse for session details */}
           <button
             onClick={onToggle}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mr-auto"
@@ -264,31 +364,61 @@ const PatientBillingCard = ({
         </div>
       </div>
 
-      {/* Expandable session details */}
+      {/* Expandable session details with per-session toggle */}
       {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t">
           <div className="mt-3 space-y-1">
-            {billing.sessions.map((session, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between text-sm py-1 px-2 rounded bg-accent/30 border-r-4 border-r-primary"
-              >
-                <div className="flex items-center gap-2">
-                  <span>{session.summary}</span>
-                  {(session as any).childPatientName && (
-                    <span className="text-xs text-muted-foreground">({(session as any).childPatientName})</span>
-                  )}
+            {billing.sessions.map((session, i) => {
+              const isSessionPaid = session.eventId ? paidEventIds.has(session.eventId) : false;
+              const isToggling = togglingSession === session.eventId;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 cursor-pointer transition-colors ${
+                    isSessionPaid
+                      ? "bg-green-50/50 dark:bg-green-950/20 border-r-green-500"
+                      : "bg-accent/30 border-r-primary"
+                  }`}
+                  onClick={() => toggleSessionPaid(session)}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                      isSessionPaid
+                        ? "bg-green-500 border-green-500 text-white"
+                        : "border-muted-foreground/40"
+                    }`}>
+                      {isToggling ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isSessionPaid ? (
+                        <Check className="h-3 w-3" />
+                      ) : null}
+                    </div>
+                    <span className={isSessionPaid ? "line-through text-muted-foreground" : ""}>
+                      {session.summary}
+                    </span>
+                    {session.childPatientName && (
+                      <span className="text-xs text-muted-foreground">({session.childPatientName})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground">₪{billing.patient.session_price}</span>
+                    <span className="text-muted-foreground" dir="ltr">
+                      {session.date}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-muted-foreground" dir="ltr">
-                  {session.date}
-                </span>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex justify-between pt-2 font-medium border-t mt-2">
               <span>
                 {billing.sessions.length} × ₪{billing.patient.session_price}
               </span>
-              <span>סה״כ: ₪{billing.total}</span>
+              <div className="flex gap-3">
+                {somePaid && !allPaid && (
+                  <span className="text-green-600 dark:text-green-400">שולם: ₪{paidAmount}</span>
+                )}
+                <span>סה״כ: ₪{billing.total}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -297,7 +427,7 @@ const PatientBillingCard = ({
   );
 };
 
-function buildReceiptHTML(billing: PatientBilling, month: string): string {
+function buildReceiptHTML(billing: PatientBilling, month: string, paidEventIds: Set<string>): string {
   const [year, mon] = month.split("-");
   const monthName = new Date(parseInt(year), parseInt(mon) - 1).toLocaleDateString("he-IL", {
     month: "long",
@@ -306,7 +436,14 @@ function buildReceiptHTML(billing: PatientBilling, month: string): string {
   const today = new Date().toLocaleDateString("he-IL");
   const receiptNum = `R-${Date.now().toString(36).toUpperCase()}`;
 
-  const sessionsRows = billing.sessions
+  // Only include paid sessions in receipt
+  const paidSessions = paidEventIds.size > 0
+    ? billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId))
+    : billing.sessions;
+
+  const paidTotal = paidSessions.length * billing.patient.session_price;
+
+  const sessionsRows = paidSessions
     .map(
       (s, i) =>
         `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${i + 1}</td><td style="padding:6px;border-bottom:1px solid #eee;">${s.summary}</td><td style="padding:6px;border-bottom:1px solid #eee;" dir="ltr">${s.date}</td><td style="padding:6px;border-bottom:1px solid #eee;">₪${billing.patient.session_price}</td></tr>`
@@ -340,7 +477,7 @@ function buildReceiptHTML(billing: PatientBilling, month: string): string {
     <thead><tr><th>#</th><th>תיאור</th><th>תאריך</th><th>סכום</th></tr></thead>
     <tbody>${sessionsRows}</tbody>
   </table>
-  <div class="total">סה״כ: ₪${billing.total}</div>
+  <div class="total">סה״כ: ₪${paidTotal}</div>
   <p style="margin-top:40px;font-size:12px;color:#999;text-align:center;">תודה רבה!</p>
 </body></html>`;
 }
