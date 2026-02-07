@@ -11,6 +11,7 @@ import {
   Check,
   FileText,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 interface Patient {
@@ -44,6 +45,7 @@ interface PatientBillingCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   generateWhatsAppMessage: (billing: PatientBilling) => string;
+  calendarEventName?: string; // Original name in calendar (when different from patient name)
 }
 
 const PatientBillingCard = ({
@@ -53,11 +55,13 @@ const PatientBillingCard = ({
   isExpanded,
   onToggle,
   generateWhatsAppMessage,
+  calendarEventName,
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [generatingReceipt, setGeneratingReceipt] = useState(false);
+  const [renamingInCalendar, setRenamingInCalendar] = useState(false);
 
   const isPaid = payment?.paid || false;
 
@@ -135,6 +139,30 @@ const PatientBillingCard = ({
     }
   };
 
+  const renameInCalendar = async () => {
+    if (!calendarEventName) return;
+    setRenamingInCalendar(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+      const res = await supabase.functions.invoke("google-calendar-rename-events", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { oldName: calendarEventName, newName: billing.patient.name },
+      });
+      if (res.error) throw res.error;
+      const result = res.data;
+      toast({
+        title: `עודכנו ${result.updated} אירועים ביומן`,
+        description: `"${calendarEventName}" → "${billing.patient.name}"`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setRenamingInCalendar(false);
+    }
+  };
+
   return (
     <div
       className={`rounded-lg border bg-card ${
@@ -157,6 +185,29 @@ const PatientBillingCard = ({
           </div>
           <span className="font-bold text-lg">₪{billing.total}</span>
         </div>
+
+        {/* Calendar name mismatch notice */}
+        {calendarEventName && calendarEventName !== billing.patient.name && (
+          <div className="flex items-center gap-2 text-sm bg-accent/50 rounded px-3 py-1.5">
+            <span className="text-muted-foreground">
+              ביומן: &quot;{calendarEventName}&quot; → באפליקציה: &quot;{billing.patient.name}&quot;
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={renameInCalendar}
+              disabled={renamingInCalendar}
+              className="h-7 text-xs mr-auto"
+            >
+              {renamingInCalendar ? (
+                <Loader2 className="ml-1 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="ml-1 h-3 w-3" />
+              )}
+              עדכן ביומן
+            </Button>
+          </div>
+        )}
 
         {/* Action buttons - always visible */}
         <div className="flex flex-wrap items-center gap-2">
