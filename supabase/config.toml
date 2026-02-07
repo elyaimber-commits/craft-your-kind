@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.google-calendar-update-colors]
 verify_jwt = false
+
+[functions.green-invoice-webhook]
+verify_jwt = false
