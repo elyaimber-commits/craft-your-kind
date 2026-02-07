@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
-  FileText,
   Loader2,
   RefreshCw,
   Pencil,
@@ -73,7 +72,6 @@ const PatientBillingCard = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [generatingReceipt, setGeneratingReceipt] = useState(false);
   const [renamingInCalendar, setRenamingInCalendar] = useState(false);
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
   const [editingPriceEventId, setEditingPriceEventId] = useState<string | null>(null);
@@ -255,21 +253,6 @@ const PatientBillingCard = ({
     },
   });
 
-  const generateReceipt = () => {
-    setGeneratingReceipt(true);
-    try {
-      const receiptContent = buildReceiptHTML(billing, currentMonth, paidEventIds);
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(receiptContent);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => printWindow.print(), 500);
-      }
-    } finally {
-      setGeneratingReceipt(false);
-    }
-  };
 
   const renameInCalendar = async () => {
     if (!calendarEventName) return;
@@ -386,15 +369,6 @@ const PatientBillingCard = ({
             {allPaid ? "בטל הכל" : "סמן הכל כשולם"}
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => generateReceipt()}
-            disabled={generatingReceipt}
-          >
-            <FileText className="ml-1 h-4 w-4" />
-            הנפק קבלה
-          </Button>
 
           <button
             onClick={onToggle}
@@ -502,60 +476,5 @@ const PatientBillingCard = ({
     </div>
   );
 };
-
-function buildReceiptHTML(billing: PatientBilling, month: string, paidEventIds: Set<string>): string {
-  const [year, mon] = month.split("-");
-  const monthName = new Date(parseInt(year), parseInt(mon) - 1).toLocaleDateString("he-IL", {
-    month: "long",
-    year: "numeric",
-  });
-  const today = new Date().toLocaleDateString("he-IL");
-  const receiptNum = `R-${Date.now().toString(36).toUpperCase()}`;
-
-  // Only include paid sessions in receipt
-  const paidSessions = paidEventIds.size > 0
-    ? billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId))
-    : billing.sessions;
-
-  const paidTotal = paidSessions.length * billing.patient.session_price;
-
-  const sessionsRows = paidSessions
-    .map(
-      (s, i) =>
-        `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${i + 1}</td><td style="padding:6px;border-bottom:1px solid #eee;">${s.summary}</td><td style="padding:6px;border-bottom:1px solid #eee;" dir="ltr">${s.date}</td><td style="padding:6px;border-bottom:1px solid #eee;">₪${billing.patient.session_price}</td></tr>`
-    )
-    .join("");
-
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"><title>קבלה - ${billing.patient.name}</title>
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #333; }
-  h1 { text-align: center; font-size: 24px; margin-bottom: 4px; }
-  .subtitle { text-align: center; color: #666; margin-bottom: 30px; }
-  .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px; color: #666; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th { background: #f5f5f5; padding: 8px; text-align: right; border-bottom: 2px solid #ddd; }
-  .total { text-align: left; font-size: 20px; font-weight: bold; padding: 10px 0; border-top: 2px solid #333; }
-  @media print { body { margin: 0; } }
-</style></head>
-<body>
-  <h1>קבלה</h1>
-  <p class="subtitle">${monthName}</p>
-  <div class="meta">
-    <span>לכבוד: <strong>${billing.patient.name}</strong></span>
-    <span>תאריך: ${today}</span>
-  </div>
-  <div class="meta">
-    <span>מספר קבלה: ${receiptNum}</span>
-  </div>
-  <table>
-    <thead><tr><th>#</th><th>תיאור</th><th>תאריך</th><th>סכום</th></tr></thead>
-    <tbody>${sessionsRows}</tbody>
-  </table>
-  <div class="total">סה״כ: ₪${paidTotal}</div>
-  <p style="margin-top:40px;font-size:12px;color:#999;text-align:center;">תודה רבה!</p>
-</body></html>`;
-}
 
 export default PatientBillingCard;
