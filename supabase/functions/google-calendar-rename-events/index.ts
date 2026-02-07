@@ -116,17 +116,15 @@ serve(async (req) => {
 
     console.log(`Searching ${writableCalendars.length} writable calendars (of ${(calListData.items || []).length} total) for "${oldName}"`);
 
-    // Search for events with the old name across writable calendars IN PARALLEL
+    // Search for master/non-recurring events (NOT singleEvents=true which explodes recurring events)
+    // Patching the master recurring event once updates ALL instances (past + future)
     let updatedCount = 0;
     let failedCount = 0;
-
-    // Search past events too (go back 2 years)
-    const timeMin = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
 
     const calendarResults = await Promise.allSettled(
       writableCalendars.map(async (cal: any) => {
         const searchRes = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500&timeMin=${encodeURIComponent(timeMin)}`,
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&maxResults=250`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!searchRes.ok) return [];
@@ -134,7 +132,7 @@ serve(async (req) => {
         const matched = (searchData.items || [])
           .filter((e: any) => (e.summary || '').trim() === oldName.trim())
           .map((e: any) => ({ calId: cal.id, eventId: e.id }));
-        console.log(`Calendar "${cal.summary}": found ${matched.length} events matching "${oldName}"`);
+        console.log(`Calendar "${cal.summary}": found ${matched.length} master events matching "${oldName}"`);
         return matched;
       })
     );
@@ -145,6 +143,8 @@ serve(async (req) => {
         allEvents.push(...result.value);
       }
     }
+
+    console.log(`Total master events to rename: ${allEvents.length}`);
 
     // Rename all matching events in parallel (batch of 10)
     for (let i = 0; i < allEvents.length; i += 10) {
