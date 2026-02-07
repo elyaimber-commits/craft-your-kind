@@ -377,7 +377,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
 
   const generateWhatsAppMessage = (billing: { patient: Patient; sessions: { date: string }[]; total: number }) => {
     const dates = billing.sessions.map((s) => s.date).join(", ");
-    const message = `היי ${billing.patient.name}, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה! 🙏`;
+    const message = `היי, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה!`;
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
     return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
