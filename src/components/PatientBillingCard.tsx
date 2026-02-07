@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   MessageCircle,
@@ -12,6 +13,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  Pencil,
 } from "lucide-react";
 
 interface Patient {
@@ -74,12 +76,16 @@ const PatientBillingCard = ({
   const [generatingReceipt, setGeneratingReceipt] = useState(false);
   const [renamingInCalendar, setRenamingInCalendar] = useState(false);
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
+  const [editingPriceEventId, setEditingPriceEventId] = useState<string | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState("");
 
   const paidEventIds = new Set(payment?.paid_event_ids || []);
   const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
   const allPaid = paidCount === billing.sessions.length && billing.sessions.length > 0;
   const somePaid = paidCount > 0;
-  const paidAmount = paidCount * billing.patient.session_price;
+  const paidAmount = billing.sessions
+    .filter(s => s.eventId && paidEventIds.has(s.eventId))
+    .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
 
   // Toggle a single session's paid status
   const toggleSessionPaid = async (session: Session) => {
@@ -93,7 +99,9 @@ const PatientBillingCard = ({
         : [...currentPaidIds, session.eventId];
 
       const newPaidCount = newPaidIds.length;
-      const newAmount = newPaidCount * billing.patient.session_price;
+      const newAmount = billing.sessions
+        .filter(s => s.eventId && newPaidIds.includes(s.eventId))
+        .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
       const newAllPaid = newPaidCount === billing.sessions.length;
 
       if (payment) {
@@ -145,8 +153,45 @@ const PatientBillingCard = ({
       setTogglingSession(null);
     }
   };
+  // Save custom price override for a session
+  const saveSessionPrice = async (session: Session) => {
+    if (!session.eventId || !user) return;
+    const newPrice = parseFloat(editPriceValue);
+    if (isNaN(newPrice) || newPrice < 0) return;
+    try {
+      const defaultPrice = session.sessionPrice ?? billing.patient.session_price;
+      if (newPrice === defaultPrice) {
+        // Remove override if same as default
+        await supabase
+          .from("session_overrides")
+          .delete()
+          .eq("event_id", session.eventId)
+          .eq("therapist_id", user.id);
+      } else {
+        // Upsert override
+        await supabase
+          .from("session_overrides")
+          .upsert(
+            {
+              therapist_id: user.id,
+              patient_id: billing.patient.id,
+              event_id: session.eventId,
+              custom_price: newPrice,
+            },
+            { onConflict: "event_id,therapist_id" }
+          );
+      }
+      queryClient.invalidateQueries({ queryKey: ["session-overrides"] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+      toast({ title: "מחיר עודכן" });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setEditingPriceEventId(null);
+    }
+  };
 
-  // Mark all sessions paid/unpaid
+
   const markAllMutation = useMutation({
     mutationFn: async () => {
       const markingAsPaid = !allPaid;
@@ -402,7 +447,37 @@ const PatientBillingCard = ({
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-muted-foreground">₪{session.sessionPrice ?? billing.patient.session_price}</span>
+                    {editingPriceEventId === session.eventId ? (
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); saveSessionPrice(session); }}
+                        className="flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-muted-foreground">₪</span>
+                        <Input
+                          type="number"
+                          value={editPriceValue}
+                          onChange={(e) => setEditPriceValue(e.target.value)}
+                          className="h-6 w-16 text-xs px-1"
+                          dir="ltr"
+                          autoFocus
+                          onBlur={() => saveSessionPrice(session)}
+                        />
+                      </form>
+                    ) : (
+                      <button
+                        className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPriceEventId(session.eventId || null);
+                          setEditPriceValue(String(session.sessionPrice ?? billing.patient.session_price));
+                        }}
+                        title="לחץ לשינוי מחיר"
+                      >
+                        <span>₪{session.sessionPrice ?? billing.patient.session_price}</span>
+                        <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100" />
+                      </button>
+                    )}
                     <span className="text-muted-foreground" dir="ltr">
                       {session.date}
                     </span>
