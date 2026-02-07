@@ -31,8 +31,14 @@ interface MonthlyBillingSummaryProps {
   patients: Patient[];
 }
 
-const YELLOW_COLOR_IDS = ["5"];
-const BILLING_COLOR_IDS = ["5", "3"]; // Yellow (unpaid) + Purple/Grape (paid)
+// Google Calendar color IDs:
+// default (undefined) = needs billing, session summary not written
+// "5" (banana/yellow) = needs billing, session summary done
+// "4" (flamingo/red) = cancelled, no billing
+// "3" (grape/purple) = paid
+const BILLING_COLOR_IDS = ["5", "3"]; // Banana (unpaid) + Grape (paid)
+const isBillingEvent = (colorId?: string) => !colorId || BILLING_COLOR_IDS.includes(colorId);
+const CANCELLED_COLOR_ID = "4";
 
 /** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics, collapse duplicate Hebrew letters */
 const normalizeName = (name: string): string =>
@@ -160,8 +166,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const ignoredSet = new Set(ignoredEvents.map((e: any) => normalizeName(e.event_name)));
 
   const events = calendarData?.events || [];
-  const billingEvents = events.filter((e) => BILLING_COLOR_IDS.includes(e.colorId || ""));
-  const allEvents = events; // All events for showing unmatched (not just yellow)
+  const billingEvents = events.filter((e) => isBillingEvent(e.colorId) && e.colorId !== CANCELLED_COLOR_ID);
+  const allEvents = events;
   const matchedEventIds = new Set<string>();
 
   // Track calendar event names that differ from patient names (via alias)
