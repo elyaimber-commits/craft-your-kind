@@ -42,11 +42,36 @@ const EventAliasSuggestion = ({
         patient_id: patientId,
       });
       if (error) throw error;
+      return patientId;
     },
-    onSuccess: () => {
+    onSuccess: (patientId) => {
       queryClient.invalidateQueries({ queryKey: ["event-aliases"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+      const patient = allPatients.find(p => p.id === patientId);
+      const patientName = patient?.name || "";
       toast({ title: `"${eventName}" שויך בהצלחה!` });
+
+      // Rename calendar events in the background
+      if (patientName && patientName !== eventName) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session) return;
+          supabase.functions.invoke("google-calendar-rename-events", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: { oldName: eventName, newName: patientName },
+          }).then((res) => {
+            const result = res.data;
+            if (result?.updated > 0) {
+              toast({
+                title: `עודכנו ${result.updated} אירועים ביומן`,
+                description: `"${eventName}" → "${patientName}"`,
+              });
+              queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+            }
+          }).catch((e) => {
+            console.error("Failed to rename calendar events:", e);
+          });
+        });
+      }
     },
     onError: (error: any) => {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
