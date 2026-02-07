@@ -200,6 +200,44 @@ export type Database = {
           },
         ]
       }
+      session_overrides: {
+        Row: {
+          created_at: string
+          custom_price: number
+          event_id: string
+          id: string
+          note: string | null
+          patient_id: string
+          therapist_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_price: number
+          event_id: string
+          id?: string
+          note?: string | null
+          patient_id: string
+          therapist_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_price?: number
+          event_id?: string
+          id?: string
+          note?: string | null
+          patient_id?: string
+          therapist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_overrides_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

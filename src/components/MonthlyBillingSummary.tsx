@@ -156,6 +156,24 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  const { data: sessionOverrides = [] } = useQuery({
+    queryKey: ["session-overrides"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("session_overrides")
+        .select("*");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Build override map: event_id -> custom_price
+  const overrideMap = new Map<string, number>();
+  sessionOverrides.forEach((o: any) => {
+    overrideMap.set(o.event_id, Number(o.custom_price));
+  });
+
   // Build alias map: normalized event name -> patient_id
   const aliasMap = new Map<string, string>();
   aliases.forEach((a: any) => {
@@ -226,7 +244,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             eventId: event.id,
             calendarId: event.organizer?.email || "primary",
             childPatientName: matchedPatient.id !== patient.id ? matchedPatient.name : undefined,
-            sessionPrice: matchedPatient.session_price,
+            sessionPrice: overrideMap.has(event.id) ? overrideMap.get(event.id)! : matchedPatient.session_price,
           };
         });
 
@@ -381,8 +399,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const totalPaid = billingData.reduce((sum, b) => {
     const payment = payments.find((p) => p.patient_id === b.patient.id);
     const paidIds = (payment as any)?.paid_event_ids || [];
-    const paidCount = b.sessions.filter(s => s.eventId && paidIds.includes(s.eventId)).length;
-    return sum + paidCount * b.patient.session_price;
+    return sum + b.sessions
+      .filter(s => s.eventId && paidIds.includes(s.eventId))
+      .reduce((s, session) => s + (session.sessionPrice ?? b.patient.session_price), 0);
   }, 0);
 
   return (
