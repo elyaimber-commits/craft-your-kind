@@ -223,10 +223,21 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           };
         });
 
+      // For institutions, calculate total based on each child's individual price
+      const total = patient.billing_type === "institution"
+        ? matchingSessions.reduce((sum, session) => {
+            const childPatient = patientsToMatch.find(p => {
+              const matched = findMatchingPatient(session.summary, [p], aliasMap);
+              return matched?.patient.id === p.id;
+            });
+            return sum + (childPatient?.session_price || patient.session_price);
+          }, 0)
+        : matchingSessions.length * patient.session_price;
+
       return {
         patient,
         sessions: matchingSessions,
-        total: matchingSessions.length * patient.session_price,
+        total,
         childPatients: patient.billing_type === "institution" ? (childPatientsByParent.get(patient.id) || []) : [],
       };
     })
