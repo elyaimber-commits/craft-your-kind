@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronRight, ChevronLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar, ChevronRight, ChevronLeft, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
@@ -97,6 +98,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const queryClient = useQueryClient();
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -383,6 +385,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
   };
 
+  // Filter billing data by search query
+  const filteredBillingData = searchQuery.trim()
+    ? billingData.filter(b => b.patient.name.includes(searchQuery.trim()))
+    : billingData;
+
   if (calendarData?.error === "not_connected") return null;
 
   if (isLoading) {
@@ -395,8 +402,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     );
   }
 
-  const totalBilled = billingData.reduce((sum, b) => sum + b.total, 0);
-  const totalPaid = billingData.reduce((sum, b) => {
+  const totalBilled = filteredBillingData.reduce((sum, b) => sum + b.total, 0);
+  const totalPaid = filteredBillingData.reduce((sum, b) => {
     const payment = payments.find((p) => p.patient_id === b.patient.id);
     const paidIds = (payment as any)?.paid_event_ids || [];
     return sum + b.sessions
@@ -429,13 +436,24 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {billingData.length === 0 && filteredUnmatched.length === 0 ? (
+        {billingData.length > 0 && (
+          <div className="relative mb-4">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="חיפוש מטופל..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pr-9"
+            />
+          </div>
+        )}
+        {filteredBillingData.length === 0 && filteredUnmatched.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
             אין פגישות שסומנו כ"בוצע" (צהוב) החודש
           </p>
         ) : (
           <div className="space-y-3">
-            {billingData.map((billing) => (
+            {filteredBillingData.map((billing) => (
               <PatientBillingCard
                 key={billing.patient.id}
                 billing={billing}

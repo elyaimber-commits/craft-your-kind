@@ -306,10 +306,10 @@ const PatientBillingCard = ({
       }`}
     >
       {/* Main row */}
-      <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-lg">{billing.patient.name}</span>
+      <div className="flex flex-col gap-3 p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-base sm:text-lg">{billing.patient.name}</span>
             {(billing.patient as any).billing_type === "institution" && (
               <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
                 מוסד

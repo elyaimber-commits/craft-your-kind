@@ -8,9 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, LogOut, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, LogOut, Users, History, Download } from "lucide-react";
 import GoogleCalendarSection from "@/components/GoogleCalendarSection";
 import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
+import RevenueChart from "@/components/RevenueChart";
+import DataExport from "@/components/DataExport";
+import { useNavigate } from "react-router-dom";
 
 interface Patient {
   id: string;
@@ -24,6 +27,7 @@ interface Patient {
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -145,14 +149,19 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">💬 סיכום חיוב חודשי</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowPatients(!showPatients)}>
-              <Users className="ml-2 h-4 w-4" />
-              ניהול מטופלים
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">💬 סיכום חיוב חודשי</h1>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/payments")}>
+              <History className="ml-2 h-4 w-4" />
+              היסטוריה
             </Button>
-            <Button variant="outline" onClick={signOut}>
+            <Button variant="outline" size="sm" onClick={() => setShowPatients(!showPatients)}>
+              <Users className="ml-2 h-4 w-4" />
+              מטופלים
+            </Button>
+            <DataExport />
+            <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="ml-2 h-4 w-4" />
               התנתק
             </Button>
@@ -167,6 +176,11 @@ const Dashboard = () => {
         {/* Monthly billing summary - the main view */}
         <div className="mb-6">
           <MonthlyBillingSummary patients={patients} />
+        </div>
+
+        {/* Revenue chart */}
+        <div className="mb-6">
+          <RevenueChart />
         </div>
 
         {/* Patient management - collapsible */}
