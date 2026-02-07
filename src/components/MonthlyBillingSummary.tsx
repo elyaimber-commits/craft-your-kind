@@ -30,6 +30,7 @@ interface MonthlyBillingSummaryProps {
 }
 
 const YELLOW_COLOR_IDS = ["5"];
+const BILLING_COLOR_IDS = ["5", "3"]; // Yellow (unpaid) + Purple/Grape (paid)
 
 /** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics */
 const normalizeName = (name: string): string =>
@@ -79,12 +80,13 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   });
 
   const events = calendarData?.events || [];
+  const billingEvents = events.filter((e) => BILLING_COLOR_IDS.includes(e.colorId || ""));
   const yellowEvents = events.filter((e) => YELLOW_COLOR_IDS.includes(e.colorId || ""));
   const matchedEventIds = new Set<string>();
 
   const billingData = patients
     .map((patient) => {
-      const matchingSessions = yellowEvents
+      const matchingSessions = billingEvents
         .filter((event) => {
           const eventName = normalizeName(event.summary || "");
           const patientName = normalizeName(patient.name);
