@@ -111,49 +111,57 @@ serve(async (req) => {
 
     const calendars = calListData.items || [];
 
-    // Search for ALL events (past and future) with the old name across all calendars
+    // Search for ALL events with the old name across all calendars IN PARALLEL
     let updatedCount = 0;
     let failedCount = 0;
 
-    for (const cal of calendars) {
-      try {
+    const calendarResults = await Promise.allSettled(
+      calendars.map(async (cal: any) => {
         const searchRes = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        if (!searchRes.ok) continue;
+        if (!searchRes.ok) return [];
         const searchData = await searchRes.json();
-        const matchingEvents = (searchData.items || []).filter(
-          (e: any) => (e.summary || '').trim() === oldName.trim()
-        );
+        return (searchData.items || [])
+          .filter((e: any) => (e.summary || '').trim() === oldName.trim())
+          .map((e: any) => ({ calId: cal.id, eventId: e.id }));
+      })
+    );
 
-        // Rename each matching event
-        for (const event of matchingEvents) {
-          try {
-            const patchRes = await fetch(
-              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(event.id)}`,
-              {
-                method: 'PATCH',
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ summary: newName }),
-              }
-            );
-            if (patchRes.ok) {
-              updatedCount++;
-            } else {
-              failedCount++;
-              const err = await patchRes.json();
-              console.error(`Failed to rename event ${event.id}:`, err);
+    const allEvents: { calId: string; eventId: string }[] = [];
+    for (const result of calendarResults) {
+      if (result.status === 'fulfilled') {
+        allEvents.push(...result.value);
+      }
+    }
+
+    // Rename all matching events in parallel (batch of 10)
+    for (let i = 0; i < allEvents.length; i += 10) {
+      const batch = allEvents.slice(i, i + 10);
+      const results = await Promise.allSettled(
+        batch.map(async ({ calId, eventId }) => {
+          const patchRes = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(eventId)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ summary: newName }),
             }
-          } catch {
-            failedCount++;
+          );
+          if (!patchRes.ok) {
+            const err = await patchRes.json();
+            console.error(`Failed to rename event ${eventId}:`, err);
+            throw err;
           }
-        }
-      } catch {
-        // Skip calendar on error
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') updatedCount++;
+        else failedCount++;
       }
     }
 
