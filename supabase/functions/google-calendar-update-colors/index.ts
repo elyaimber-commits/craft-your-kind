@@ -104,6 +104,11 @@ serve(async (req) => {
         .eq('user_id', userId);
     }
 
+    // Build patch body
+    const patchBody = targetColorId === null
+      ? { colorId: null }
+      : { colorId: targetColorId };
+
     // Update events in batches to avoid Google rate limits
     const BATCH_SIZE = 3;
     const BATCH_DELAY_MS = 300;
