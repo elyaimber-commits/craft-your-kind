@@ -109,23 +109,30 @@ serve(async (req) => {
       });
     }
 
-    const calendars = calListData.items || [];
+    // Only search writable calendars (skip holidays, read-only shared calendars)
+    const writableCalendars = (calListData.items || []).filter(
+      (cal: any) => cal.accessRole === 'owner' || cal.accessRole === 'writer'
+    );
 
-    // Search for ALL events with the old name across all calendars IN PARALLEL
+    console.log(`Searching ${writableCalendars.length} writable calendars (of ${(calListData.items || []).length} total) for "${oldName}"`);
+
+    // Search for events with the old name across writable calendars IN PARALLEL
     let updatedCount = 0;
     let failedCount = 0;
 
     const calendarResults = await Promise.allSettled(
-      calendars.map(async (cal: any) => {
+      writableCalendars.map(async (cal: any) => {
         const searchRes = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?q=${encodeURIComponent(oldName)}&singleEvents=true&maxResults=2500`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!searchRes.ok) return [];
         const searchData = await searchRes.json();
-        return (searchData.items || [])
+        const matched = (searchData.items || [])
           .filter((e: any) => (e.summary || '').trim() === oldName.trim())
           .map((e: any) => ({ calId: cal.id, eventId: e.id }));
+        console.log(`Calendar "${cal.summary}": found ${matched.length} events matching "${oldName}"`);
+        return matched;
       })
     );
 
