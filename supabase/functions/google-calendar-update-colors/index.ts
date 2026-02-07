@@ -104,37 +104,54 @@ serve(async (req) => {
         .eq('user_id', userId);
     }
 
-    // Update each event's color
-    const patchBody = targetColorId === null
-      ? { colorId: null } // Reset to default calendar color
-      : { colorId: targetColorId };
+    // Update events in batches to avoid Google rate limits
+    const BATCH_SIZE = 3;
+    const BATCH_DELAY_MS = 300;
+    const MAX_RETRIES = 2;
 
-    const results = await Promise.allSettled(
-      eventIds.map(async ({ calendarId, eventId }: { calendarId: string; eventId: string }) => {
-        const res = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(patchBody),
-          }
-        );
-        if (!res.ok) {
-          const err = await res.json();
-          console.error(`Failed to update event ${eventId}:`, err);
-          return { eventId, success: false, error: err.error?.message };
+    const updateEvent = async (calendarId: string, eventId: string, retries = 0): Promise<{ eventId: string; success: boolean; error?: string }> => {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(patchBody),
         }
-        return { eventId, success: true };
-      })
-    );
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        if (err.error?.code === 403 && err.error?.errors?.[0]?.reason === 'rateLimitExceeded' && retries < MAX_RETRIES) {
+          const backoff = (retries + 1) * 1000;
+          await new Promise(r => setTimeout(r, backoff));
+          return updateEvent(calendarId, eventId, retries + 1);
+        }
+        console.error(`Failed to update event ${eventId}:`, err);
+        return { eventId, success: false, error: err.error?.message };
+      }
+      return { eventId, success: true };
+    };
 
-    const updated = results.filter(r => r.status === 'fulfilled' && (r.value as any).success).length;
-    const failed = results.length - updated;
+    const allItems = eventIds as { calendarId: string; eventId: string }[];
+    const allResults: { eventId: string; success: boolean; error?: string }[] = [];
 
-    return new Response(JSON.stringify({ updated, failed, total: results.length }), {
+    for (let i = 0; i < allItems.length; i += BATCH_SIZE) {
+      const batch = allItems.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(({ calendarId, eventId }) => updateEvent(calendarId, eventId))
+      );
+      allResults.push(...batchResults);
+      if (i + BATCH_SIZE < allItems.length) {
+        await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
+      }
+    }
+
+    const updated = allResults.filter(r => r.success).length;
+    const failed = allResults.length - updated;
+
+    return new Response(JSON.stringify({ updated, failed, total: allResults.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
