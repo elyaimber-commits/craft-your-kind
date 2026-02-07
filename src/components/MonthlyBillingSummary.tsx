@@ -42,23 +42,24 @@ const normalizeName = (name: string): string =>
     .replace(/[\u0591-\u05C7]/g, "") // strip Hebrew diacritics (nikud)
     .replace(/(.)\1+/g, "$1"); // collapse duplicate consecutive characters
 
-/** Find matching patient: exact first, then check aliases */
+/** Find matching patient: exact first, then check aliases. Returns patient + whether it was via alias */
 const findMatchingPatient = (
   eventName: string,
   patients: Patient[],
   aliasMap: Map<string, string> // normalized event name -> patient id
-): Patient | null => {
+): { patient: Patient; viaAlias: boolean } | null => {
   const normalizedEvent = normalizeName(eventName);
 
   // Priority 1: Exact match after normalization
   for (const patient of patients) {
-    if (normalizeName(patient.name) === normalizedEvent) return patient;
+    if (normalizeName(patient.name) === normalizedEvent) return { patient, viaAlias: false };
   }
 
   // Priority 2: Check saved aliases
   const aliasPatientId = aliasMap.get(normalizedEvent);
   if (aliasPatientId) {
-    return patients.find((p) => p.id === aliasPatientId) || null;
+    const patient = patients.find((p) => p.id === aliasPatientId);
+    if (patient) return { patient, viaAlias: true };
   }
 
   return null;
@@ -144,15 +145,22 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const allEvents = events; // All events for showing unmatched (not just yellow)
   const matchedEventIds = new Set<string>();
 
+  // Track calendar event names that differ from patient names (via alias)
+  const calendarNameByPatient = new Map<string, string>();
+
   const billingData = patients
     .map((patient) => {
       const matchingSessions = billingEvents
         .filter((event) => {
           const matched = findMatchingPatient(event.summary || "", [patient], aliasMap);
-          return matched?.id === patient.id;
+          return matched?.patient.id === patient.id;
         })
         .map((event) => {
           matchedEventIds.add(event.id);
+          const matched = findMatchingPatient(event.summary || "", [patient], aliasMap);
+          if (matched?.viaAlias && event.summary) {
+            calendarNameByPatient.set(patient.id, event.summary.trim());
+          }
           return {
             date: event.start.dateTime
               ? (() => { const d = new Date(event.start.dateTime!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
@@ -283,6 +291,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                   )
                 }
                 generateWhatsAppMessage={generateWhatsAppMessage}
+                calendarEventName={calendarNameByPatient.get(billing.patient.id)}
               />
             ))}
 
