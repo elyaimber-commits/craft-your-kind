@@ -198,8 +198,11 @@ const Dashboard = () => {
                       <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="050-1234567" required dir="ltr" />
                     </div>
                     <div className="space-y-2">
-                      <Label>מחיר לטיפול (₪)</Label>
-                      <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required dir="ltr" />
+                      <Label>מחיר לטיפול (₪){billingType === "institution" ? " (ברירת מחדל לילדים ללא מחיר)" : ""}</Label>
+                      <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required={billingType !== "institution"} dir="ltr" />
+                      {billingType === "institution" && (
+                        <p className="text-xs text-muted-foreground">הסכום יחושב לפי המחיר האישי של כל מטופל משויך</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>סוג חיוב</Label>
