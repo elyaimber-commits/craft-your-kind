@@ -87,10 +87,25 @@ serve(async (req) => {
         .eq('user_id', userId);
     }
 
-    // Get current month range
+    // Get month range from request body or default to current month
+    let selectedMonth: string | undefined;
+    try {
+      const body = await req.json();
+      selectedMonth = body?.month; // format: "YYYY-MM"
+    } catch {
+      // No body or invalid JSON, use current month
+    }
+
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    let year = now.getFullYear();
+    let month = now.getMonth();
+    if (selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)) {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      year = y;
+      month = m - 1; // 0-indexed
+    }
+    const startOfMonth = new Date(year, month, 1).toISOString();
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
     // Fetch all calendars
     const calListRes = await fetch(

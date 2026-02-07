@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, ChevronRight, ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import NewPatientSuggestion from "@/components/NewPatientSuggestion";
 import PatientBillingCard from "@/components/PatientBillingCard";
@@ -33,18 +34,21 @@ const YELLOW_COLOR_IDS = ["5"];
 const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const { user } = useAuth();
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
 
-  const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const currentMonthName = now.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  const selectedDate = new Date();
+  selectedDate.setMonth(selectedDate.getMonth() + monthOffset);
+  const currentMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}`;
+  const currentMonthName = selectedDate.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   const { data: calendarData, isLoading } = useQuery({
-    queryKey: ["google-calendar-events-billing"],
+    queryKey: ["google-calendar-events-billing", currentMonth],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
       const res = await supabase.functions.invoke("google-calendar-billing", {
         headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { month: currentMonth },
       });
       if (res.error) throw res.error;
       return res.data as { events?: CalendarEvent[]; error?: string };
@@ -140,7 +144,16 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            סיכום חיוב — {currentMonthName}
+            סיכום חיוב
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setMonthOffset(o => o - 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[100px] text-center">{currentMonthName}</span>
+            <Button variant="ghost" size="icon" onClick={() => setMonthOffset(o => o + 1)} disabled={monthOffset >= 0}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
           </div>
           {billingData.length > 0 && (
             <div className="text-sm font-normal text-muted-foreground">
