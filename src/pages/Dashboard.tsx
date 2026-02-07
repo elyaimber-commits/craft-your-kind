@@ -60,37 +60,38 @@ const Dashboard = () => {
         if (error) throw error;
       }
 
-      // If name changed, update calendar events automatically
+      // If name changed, update calendar events in the background (don't block save)
       if (editingPatient && oldName && oldName !== name) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            // Rename events with the old patient name
-            await supabase.functions.invoke("google-calendar-rename-events", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-              body: { oldName, newName: name },
-            });
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session) return;
+          const renameInBackground = async () => {
+            try {
+              await supabase.functions.invoke("google-calendar-rename-events", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+                body: { oldName, newName: name },
+              });
 
-            // Also rename events matching any aliases for this patient
-            const { data: aliases } = await supabase
-              .from("event_aliases")
-              .select("event_name")
-              .eq("patient_id", editingPatient.id);
+              const { data: aliases } = await supabase
+                .from("event_aliases")
+                .select("event_name")
+                .eq("patient_id", editingPatient.id);
 
-            if (aliases) {
-              for (const alias of aliases) {
-                if (alias.event_name !== oldName) {
-                  await supabase.functions.invoke("google-calendar-rename-events", {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                    body: { oldName: alias.event_name, newName: name },
-                  });
+              if (aliases) {
+                for (const alias of aliases) {
+                  if (alias.event_name !== oldName) {
+                    await supabase.functions.invoke("google-calendar-rename-events", {
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                      body: { oldName: alias.event_name, newName: name },
+                    });
+                  }
                 }
               }
+            } catch (e) {
+              console.error("Failed to update calendar names:", e);
             }
-          }
-        } catch (e) {
-          console.error("Failed to update calendar names:", e);
-        }
+          };
+          renameInBackground();
+        });
       }
     },
     onSuccess: () => {
