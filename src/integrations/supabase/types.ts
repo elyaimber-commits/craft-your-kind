@@ -100,6 +100,9 @@ export type Database = {
       patients: {
         Row: {
           billing_type: string
+          commission_enabled: boolean
+          commission_type: string
+          commission_value: number | null
           created_at: string
           green_invoice_customer_id: string | null
           id: string
@@ -112,6 +115,9 @@ export type Database = {
         }
         Insert: {
           billing_type?: string
+          commission_enabled?: boolean
+          commission_type?: string
+          commission_value?: number | null
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
@@ -124,6 +130,9 @@ export type Database = {
         }
         Update: {
           billing_type?: string
+          commission_enabled?: boolean
+          commission_type?: string
+          commission_value?: number | null
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
@@ -148,6 +157,8 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          external_payment_id: string | null
+          external_source: string | null
           id: string
           month: string
           notes: string | null
@@ -157,12 +168,15 @@ export type Database = {
           patient_id: string
           receipt_number: string | null
           session_count: number
+          status: string
           therapist_id: string
           updated_at: string
         }
         Insert: {
           amount?: number
           created_at?: string
+          external_payment_id?: string | null
+          external_source?: string | null
           id?: string
           month: string
           notes?: string | null
@@ -172,12 +186,15 @@ export type Database = {
           patient_id: string
           receipt_number?: string | null
           session_count?: number
+          status?: string
           therapist_id: string
           updated_at?: string
         }
         Update: {
           amount?: number
           created_at?: string
+          external_payment_id?: string | null
+          external_source?: string | null
           id?: string
           month?: string
           notes?: string | null
@@ -187,6 +204,7 @@ export type Database = {
           patient_id?: string
           receipt_number?: string | null
           session_count?: number
+          status?: string
           therapist_id?: string
           updated_at?: string
         }
