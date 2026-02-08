@@ -73,9 +73,10 @@ function getIsraelMonthBoundsAccurate(month: string): { start: string; end: stri
 }
 
 export function useMonthPayments(month: string) {
-  const { start, end } = getIsraelMonthBoundsAccurate(month);
+  const bounds = getIsraelMonthBoundsAccurate(month);
+  const { start, end } = bounds;
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["analysis-payments", month],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,6 +89,8 @@ export function useMonthPayments(month: string) {
       return (data || []) as AnalysisPayment[];
     },
   });
+
+  return { ...query, debugBounds: bounds };
 }
 
 export function useAnalysisPatients() {
