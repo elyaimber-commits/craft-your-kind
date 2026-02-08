@@ -73,24 +73,20 @@ function getIsraelMonthBoundsAccurate(month: string): { start: string; end: stri
 }
 
 export function useMonthPayments(month: string) {
-  const bounds = getIsraelMonthBoundsAccurate(month);
-  const { start, end } = bounds;
-
   const query = useQuery({
     queryKey: ["analysis-payments", month],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payments")
-        .select("id, patient_id, amount, paid_at, status, notes")
-        .gte("paid_at", start)
-        .lt("paid_at", end)
+        .select("id, patient_id, amount, paid_at, status, notes, month")
+        .eq("month", month)
         .order("paid_at", { ascending: true });
       if (error) throw error;
       return (data || []) as AnalysisPayment[];
     },
   });
 
-  return { ...query, debugBounds: bounds };
+  return { ...query, debugMonth: month };
 }
 
 export function useAnalysisPatients() {
