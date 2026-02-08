@@ -19,24 +19,36 @@ const PaymentHistory = () => {
       const { data, error } = await supabase
         .from("payments")
         .select("*, patients(name, phone)")
-        .order("month", { ascending: false });
+        .not("paid_at", "is", null)
+        .order("paid_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!user,
   });
 
+  // Derive month from paid_at using Israel timezone
+  const getMonthFromPaidAt = (paidAt: string) => {
+    const date = new Date(paidAt);
+    const israelDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+    const y = israelDate.getFullYear();
+    const m = String(israelDate.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  };
+
   const filtered = searchQuery.trim()
-    ? payments.filter((p: any) =>
-        p.patients?.name?.includes(searchQuery.trim()) ||
-        p.month.includes(searchQuery.trim())
-      )
+    ? payments.filter((p: any) => {
+        const monthStr = p.paid_at ? getMonthFromPaidAt(p.paid_at) : "";
+        return p.patients?.name?.includes(searchQuery.trim()) ||
+          monthStr.includes(searchQuery.trim());
+      })
     : payments;
 
-  // Group by month
-  const grouped = filtered.reduce<Record<string, any[]>>((acc, p) => {
-    if (!acc[p.month]) acc[p.month] = [];
-    acc[p.month].push(p);
+  // Group by month derived from paid_at (Israel timezone)
+  const grouped = filtered.reduce<Record<string, any[]>>((acc, p: any) => {
+    const m = p.paid_at ? getMonthFromPaidAt(p.paid_at) : "unknown";
+    if (!acc[m]) acc[m] = [];
+    acc[m].push(p);
     return acc;
   }, {});
 

@@ -51,7 +51,7 @@ export default function Analysis() {
     storeDeductions(d);
   }, []);
 
-  const { data: payments = [], isLoading: loadingPayments } = useMonthPayments(month);
+  const { data: payments = [], isLoading: loadingPayments, debugBounds } = useMonthPayments(month);
   const { data: patients = [], isLoading: loadingPatients } = useAnalysisPatients();
 
   const analysis = useMemo(
@@ -94,8 +94,11 @@ export default function Analysis() {
           </Button>
         </div>
 
-        <p className="text-sm text-muted-foreground mb-4">
+        <p className="text-sm text-muted-foreground mb-2">
           {formatMonthHebrew(month)} — החישוב מבוסס על תשלומים שהתקבלו בחודש הנבחר (לפי שעון ישראל)
+        </p>
+        <p className="text-xs text-muted-foreground mb-4 font-mono" dir="ltr">
+          Debug: month={month} | start={debugBounds.start} | end={debugBounds.end} | payments: {payments.length}
         </p>
 
         {isLoading ? (
