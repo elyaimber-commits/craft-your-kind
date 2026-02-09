@@ -23,6 +23,9 @@ interface Patient {
   green_invoice_customer_id?: string | null;
   billing_type?: string;
   parent_patient_id?: string | null;
+  commission_enabled?: boolean;
+  commission_type?: string;
+  commission_value?: number | null;
 }
 
 const Dashboard = () => {
@@ -38,6 +41,9 @@ const Dashboard = () => {
   const [greenInvoiceId, setGreenInvoiceId] = useState("");
   const [billingType, setBillingType] = useState("monthly");
   const [parentPatientId, setParentPatientId] = useState("");
+  const [commissionEnabled, setCommissionEnabled] = useState(false);
+  const [commissionType, setCommissionType] = useState("percent");
+  const [commissionValue, setCommissionValue] = useState("");
   const [showPatients, setShowPatients] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery({
@@ -58,13 +64,13 @@ const Dashboard = () => {
       if (editingPatient) {
         const { error } = await supabase
           .from("patients")
-          .update({ name, phone, session_price: parseFloat(price), green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null })
+          .update({ name, phone, session_price: parseFloat(price), green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null, commission_enabled: commissionEnabled, commission_type: commissionType, commission_value: commissionValue ? parseFloat(commissionValue) : null })
           .eq("id", editingPatient.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("patients")
-          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null });
+          .insert({ name, phone, session_price: parseFloat(price), therapist_id: user!.id, green_invoice_customer_id: greenInvoiceId || null, billing_type: billingType, parent_patient_id: parentPatientId || null, commission_enabled: commissionEnabled, commission_type: commissionType, commission_value: commissionValue ? parseFloat(commissionValue) : null });
         if (error) throw error;
       }
 
@@ -131,6 +137,9 @@ const Dashboard = () => {
     setGreenInvoiceId("");
     setBillingType("monthly");
     setParentPatientId("");
+    setCommissionEnabled(false);
+    setCommissionType("percent");
+    setCommissionValue("");
     setEditingPatient(null);
     setDialogOpen(false);
   };
@@ -143,6 +152,9 @@ const Dashboard = () => {
     setGreenInvoiceId(patient.green_invoice_customer_id || "");
     setBillingType(patient.billing_type || "monthly");
     setParentPatientId(patient.parent_patient_id || "");
+    setCommissionEnabled(patient.commission_enabled || false);
+    setCommissionType(patient.commission_type || "percent");
+    setCommissionValue(patient.commission_value != null ? patient.commission_value.toString() : "");
     setDialogOpen(true);
   };
 
@@ -249,6 +261,35 @@ const Dashboard = () => {
                         </select>
                       </div>
                     )}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>עמלה</Label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <span className="text-sm text-muted-foreground">{commissionEnabled ? "פעיל" : "כבוי"}</span>
+                          <input type="checkbox" checked={commissionEnabled} onChange={(e) => setCommissionEnabled(e.target.checked)} className="rounded" />
+                        </label>
+                      </div>
+                      {commissionEnabled && (
+                        <div className="flex gap-2">
+                          <select
+                            value={commissionType}
+                            onChange={(e) => setCommissionType(e.target.value)}
+                            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-28"
+                          >
+                            <option value="percent">אחוז %</option>
+                            <option value="fixed">סכום קבוע ₪</option>
+                          </select>
+                          <Input
+                            type="number"
+                            value={commissionValue}
+                            onChange={(e) => setCommissionValue(e.target.value)}
+                            placeholder={commissionType === "percent" ? "למשל 10" : "למשל 200"}
+                            dir="ltr"
+                            className="flex-1"
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       <Label>מזהה לקוח בחשבונית ירוקה (אופציונלי)</Label>
                       <Input value={greenInvoiceId} onChange={(e) => setGreenInvoiceId(e.target.value)} placeholder="מזהה לקוח מחשבונית ירוקה" dir="ltr" />
