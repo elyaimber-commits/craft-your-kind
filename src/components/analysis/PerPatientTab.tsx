@@ -50,6 +50,14 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
     URL.revokeObjectURL(url);
   };
 
+  const commissionPatients = filtered.filter((pa) => pa.patient.commission_enabled && pa.commission > 0);
+  const commissionTotals = {
+    gross: commissionPatients.reduce((s, pa) => s + pa.gross, 0),
+    base: commissionPatients.reduce((s, pa) => s + pa.base, 0),
+    commission: commissionPatients.reduce((s, pa) => s + pa.commission, 0),
+    net: commissionPatients.reduce((s, pa) => s + pa.netAfterCommission, 0),
+  };
+
   if (patientAnalyses.length === 0) {
     return (
       <Card>
@@ -155,6 +163,52 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
           </TableBody>
         </Table>
       </div>
+
+      {commissionPatients.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">מטופלים עם עמלה</h3>
+          <div className="rounded-lg border overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">שם מטופל</TableHead>
+                  <TableHead className="text-right">ברוטו</TableHead>
+                  <TableHead className="text-right">בסיס</TableHead>
+                  <TableHead className="text-right">אחוז/סכום</TableHead>
+                  <TableHead className="text-right">עמלה</TableHead>
+                  <TableHead className="text-right">נטו</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commissionPatients.map((pa) => (
+                  <TableRow key={pa.patient.id}>
+                    <TableCell className="font-medium">{pa.patient.name}</TableCell>
+                    <TableCell>{fmt(pa.gross)}</TableCell>
+                    <TableCell>{fmt(pa.base)}</TableCell>
+                    <TableCell>
+                      {pa.patient.commission_type === "percent"
+                        ? `${pa.patient.commission_value}%`
+                        : fmt(pa.patient.commission_value || 0)}
+                    </TableCell>
+                    <TableCell>{fmt(pa.commission)}</TableCell>
+                    <TableCell className="font-semibold">{fmt(pa.netAfterCommission)}</TableCell>
+                  </TableRow>
+                ))}
+                {commissionPatients.length > 1 && (
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell>סה״כ</TableCell>
+                    <TableCell>{fmt(commissionTotals.gross)}</TableCell>
+                    <TableCell>{fmt(commissionTotals.base)}</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell>{fmt(commissionTotals.commission)}</TableCell>
+                    <TableCell>{fmt(commissionTotals.net)}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
