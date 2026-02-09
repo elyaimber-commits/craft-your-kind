@@ -25,6 +25,14 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
     pa.patient.name.includes(search)
   );
 
+  const totals = {
+    gross: filtered.reduce((s, pa) => s + pa.gross, 0),
+    vat: filtered.reduce((s, pa) => s + pa.vat, 0),
+    base: filtered.reduce((s, pa) => s + pa.base, 0),
+    commission: filtered.reduce((s, pa) => s + pa.commission, 0),
+    net: filtered.reduce((s, pa) => s + pa.netAfterCommission, 0),
+  };
+
   const exportCSV = () => {
     const header = "שם,ברוטו,מעמ,בסיס אחרי מעמ,עמלה,נטו אחרי עמלה\n";
     const rows = patientAnalyses
@@ -133,6 +141,17 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
                 )}
               </>
             ))}
+            {filtered.length > 1 && (
+              <TableRow className="bg-muted/50 font-semibold">
+                <TableCell>סה״כ</TableCell>
+                <TableCell>{fmt(totals.gross)}</TableCell>
+                <TableCell>{fmt(totals.vat)}</TableCell>
+                <TableCell>{fmt(totals.base)}</TableCell>
+                <TableCell>{totals.commission > 0 ? fmt(totals.commission) : "—"}</TableCell>
+                <TableCell>{fmt(totals.net)}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
