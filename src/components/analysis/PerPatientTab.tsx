@@ -97,9 +97,9 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
             <TableRow>
               <TableHead className="text-right">שם מטופל</TableHead>
               <TableHead className="text-right">ברוטו</TableHead>
+              <TableHead className="text-right">עמלה</TableHead>
               <TableHead className="text-right">מע״מ</TableHead>
               <TableHead className="text-right">בסיס</TableHead>
-              <TableHead className="text-right">עמלה</TableHead>
               <TableHead className="text-right">נטו</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -110,9 +110,9 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
                 <TableRow key={pa.patient.id} className="cursor-pointer" onClick={() => setExpandedId(expandedId === pa.patient.id ? null : pa.patient.id)}>
                   <TableCell className="font-medium">{pa.patient.name}</TableCell>
                   <TableCell>{fmt(pa.gross)}</TableCell>
+                  <TableCell>{pa.commission > 0 ? fmt(pa.commission) : "—"}</TableCell>
                   <TableCell>{fmt(pa.vat)}</TableCell>
                   <TableCell>{fmt(pa.base)}</TableCell>
-                  <TableCell>{pa.commission > 0 ? fmt(pa.commission) : "—"}</TableCell>
                   <TableCell className="font-semibold">{fmt(pa.netAfterCommission)}</TableCell>
                   <TableCell>
                     {expandedId === pa.patient.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -153,9 +153,9 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
               <TableRow className="bg-muted/50 font-semibold">
                 <TableCell>סה״כ</TableCell>
                 <TableCell>{fmt(totals.gross)}</TableCell>
+                <TableCell>{totals.commission > 0 ? fmt(totals.commission) : "—"}</TableCell>
                 <TableCell>{fmt(totals.vat)}</TableCell>
                 <TableCell>{fmt(totals.base)}</TableCell>
-                <TableCell>{totals.commission > 0 ? fmt(totals.commission) : "—"}</TableCell>
                 <TableCell>{fmt(totals.net)}</TableCell>
                 <TableCell></TableCell>
               </TableRow>
