@@ -173,9 +173,9 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
                 <TableRow>
                   <TableHead className="text-right">שם מטופל</TableHead>
                   <TableHead className="text-right">ברוטו</TableHead>
-                  <TableHead className="text-right">בסיס</TableHead>
                   <TableHead className="text-right">אחוז/סכום</TableHead>
                   <TableHead className="text-right">עמלה</TableHead>
+                  <TableHead className="text-right">בסיס</TableHead>
                   <TableHead className="text-right">נטו</TableHead>
                 </TableRow>
               </TableHeader>
@@ -184,13 +184,13 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
                   <TableRow key={pa.patient.id}>
                     <TableCell className="font-medium">{pa.patient.name}</TableCell>
                     <TableCell>{fmt(pa.gross)}</TableCell>
-                    <TableCell>{fmt(pa.base)}</TableCell>
                     <TableCell>
                       {pa.patient.commission_type === "percent"
                         ? `${pa.patient.commission_value}%`
                         : fmt(pa.patient.commission_value || 0)}
                     </TableCell>
                     <TableCell>{fmt(pa.commission)}</TableCell>
+                    <TableCell>{fmt(pa.base)}</TableCell>
                     <TableCell className="font-semibold">{fmt(pa.netAfterCommission)}</TableCell>
                   </TableRow>
                 ))}
@@ -198,9 +198,9 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
                   <TableRow className="bg-muted/50 font-semibold">
                     <TableCell>סה״כ</TableCell>
                     <TableCell>{fmt(commissionTotals.gross)}</TableCell>
-                    <TableCell>{fmt(commissionTotals.base)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell>{fmt(commissionTotals.commission)}</TableCell>
+                    <TableCell>{fmt(commissionTotals.base)}</TableCell>
                     <TableCell>{fmt(commissionTotals.net)}</TableCell>
                   </TableRow>
                 )}
