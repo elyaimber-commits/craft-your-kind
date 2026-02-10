@@ -180,7 +180,7 @@ export function computeAnalysis(
     let commission = 0;
     if (patient.commission_enabled && patient.commission_value != null) {
       if (patient.commission_type === "percent") {
-        commission = patientBase * (patient.commission_value / 100);
+        commission = patientGross * (patient.commission_value / 100);
       } else {
         commission = patient.commission_value;
       }
