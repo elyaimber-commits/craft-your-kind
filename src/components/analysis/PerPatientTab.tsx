@@ -209,6 +209,56 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
           </div>
         </div>
       )}
+
+      {commissionPatients.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">פירוט תשלומים ועמלות</h3>
+          <div className="rounded-lg border overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">שם מטופל</TableHead>
+                  <TableHead className="text-right">תאריך</TableHead>
+                  <TableHead className="text-right">סכום</TableHead>
+                  <TableHead className="text-right">עמלה</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commissionPatients.flatMap((pa) =>
+                  pa.payments.map((pay, idx) => {
+                    const payCommission =
+                      pa.patient.commission_type === "percent"
+                        ? pay.amount * ((pa.patient.commission_value || 0) / 100)
+                        : idx === 0
+                          ? (pa.patient.commission_value || 0)
+                          : 0;
+                    return (
+                      <TableRow key={pay.id}>
+                        {idx === 0 ? (
+                          <TableCell className="font-medium" rowSpan={pa.payments.length}>
+                            {pa.patient.name}
+                          </TableCell>
+                        ) : null}
+                        <TableCell dir="ltr" className="text-right">
+                          {pay.paid_at ? new Date(pay.paid_at).toLocaleDateString("he-IL") : "—"}
+                        </TableCell>
+                        <TableCell>{fmt(pay.amount)}</TableCell>
+                        <TableCell>{payCommission > 0 ? fmt(payCommission) : "—"}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+                <TableRow className="bg-muted/50 font-semibold">
+                  <TableCell>סה״כ</TableCell>
+                  <TableCell></TableCell>
+                  <TableCell>{fmt(commissionTotals.gross)}</TableCell>
+                  <TableCell>{fmt(commissionTotals.commission)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
