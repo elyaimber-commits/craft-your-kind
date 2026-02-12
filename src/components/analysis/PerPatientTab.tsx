@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,9 +20,76 @@ function fmt(n: number) {
   return `₪${n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const normalizeName = (name: string): string =>
+  name.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, "").replace(/(.)\1+/g, "$1");
+
 export default function PerPatientTab({ patientAnalyses, month, vatRate, includeRefunds }: PerPatientTabProps) {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Fetch calendar events for session dates
+  const { data: calendarData } = useQuery({
+    queryKey: ["google-calendar-events-billing", month],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+      const res = await supabase.functions.invoke("google-calendar-billing", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { month },
+      });
+      if (res.error) throw res.error;
+      return res.data as { events?: { id: string; summary: string; start: { dateTime?: string; date?: string } }[] };
+    },
+    enabled: !!user,
+  });
+
+  // Fetch aliases for matching
+  const { data: aliases = [] } = useQuery({
+    queryKey: ["event-aliases"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("event_aliases").select("*");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const aliasMap = new Map<string, string>();
+  aliases.forEach((a: any) => aliasMap.set(normalizeName(a.event_name), a.patient_id));
+
+  // Build session dates per patient from calendar events
+  const sessionDatesByPatient = new Map<string, string[]>();
+  if (calendarData?.events) {
+    for (const event of calendarData.events) {
+      const normalizedEvent = normalizeName(event.summary || "");
+      // Match by patient name or alias
+      let matchedPatientId: string | null = null;
+      for (const pa of patientAnalyses) {
+        if (normalizeName(pa.patient.name) === normalizedEvent) {
+          matchedPatientId = pa.patient.id;
+          break;
+        }
+      }
+      if (!matchedPatientId) {
+        const aliasPatientId = aliasMap.get(normalizedEvent);
+        if (aliasPatientId) matchedPatientId = aliasPatientId;
+      }
+      if (matchedPatientId) {
+        const dateStr = event.start.dateTime
+          ? (() => { const d = new Date(event.start.dateTime!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
+          : event.start.date
+          ? (() => { const d = new Date(event.start.date!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
+          : "";
+        if (dateStr) {
+          const list = sessionDatesByPatient.get(matchedPatientId) || [];
+          list.push(dateStr);
+          sessionDatesByPatient.set(matchedPatientId, list);
+        }
+      }
+    }
+  }
 
   const filtered = patientAnalyses.filter((pa) =>
     pa.patient.name.includes(search)
@@ -218,36 +288,25 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-right">שם מטופל</TableHead>
-                  <TableHead className="text-right">תאריך</TableHead>
+                  <TableHead className="text-right">תאריכי פגישות</TableHead>
                   <TableHead className="text-right">סכום</TableHead>
                   <TableHead className="text-right">עמלה</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {commissionPatients.flatMap((pa) =>
-                  pa.payments.map((pay, idx) => {
-                    const payCommission =
-                      pa.patient.commission_type === "percent"
-                        ? pay.amount * ((pa.patient.commission_value || 0) / 100)
-                        : idx === 0
-                          ? (pa.patient.commission_value || 0)
-                          : 0;
-                    return (
-                      <TableRow key={pay.id}>
-                        {idx === 0 ? (
-                          <TableCell className="font-medium" rowSpan={pa.payments.length}>
-                            {pa.patient.name}
-                          </TableCell>
-                        ) : null}
-                        <TableCell dir="ltr" className="text-right">
-                          {pay.paid_at ? new Date(pay.paid_at).toLocaleDateString("he-IL") : "—"}
-                        </TableCell>
-                        <TableCell>{fmt(pay.amount)}</TableCell>
-                        <TableCell>{payCommission > 0 ? fmt(payCommission) : "—"}</TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
+                {commissionPatients.map((pa) => {
+                  const dates = sessionDatesByPatient.get(pa.patient.id) || [];
+                  return (
+                    <TableRow key={pa.patient.id}>
+                      <TableCell className="font-medium">{pa.patient.name}</TableCell>
+                      <TableCell dir="ltr" className="text-right">
+                        {dates.length > 0 ? dates.join(", ") : "—"}
+                      </TableCell>
+                      <TableCell>{fmt(pa.gross)}</TableCell>
+                      <TableCell>{fmt(pa.commission)}</TableCell>
+                    </TableRow>
+                  );
+                })}
                 <TableRow className="bg-muted/50 font-semibold">
                   <TableCell>סה״כ</TableCell>
                   <TableCell></TableCell>
