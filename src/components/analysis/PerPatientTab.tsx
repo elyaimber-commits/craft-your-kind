@@ -61,10 +61,14 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
 
   // Build session dates per patient from calendar events
   const sessionDatesByPatient = new Map<string, string[]>();
+  const now = new Date();
   if (calendarData?.events) {
     for (const event of calendarData.events) {
+      // Filter out future events that haven't occurred yet
+      const eventDate = event.start.dateTime ? new Date(event.start.dateTime) : event.start.date ? new Date(event.start.date) : null;
+      if (!eventDate || eventDate > now) continue;
+
       const normalizedEvent = normalizeName(event.summary || "");
-      // Match by patient name or alias
       let matchedPatientId: string | null = null;
       for (const pa of patientAnalyses) {
         if (normalizeName(pa.patient.name) === normalizedEvent) {
@@ -77,16 +81,11 @@ export default function PerPatientTab({ patientAnalyses, month, vatRate, include
         if (aliasPatientId) matchedPatientId = aliasPatientId;
       }
       if (matchedPatientId) {
-        const dateStr = event.start.dateTime
-          ? (() => { const d = new Date(event.start.dateTime!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
-          : event.start.date
-          ? (() => { const d = new Date(event.start.date!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
-          : "";
-        if (dateStr) {
-          const list = sessionDatesByPatient.get(matchedPatientId) || [];
-          list.push(dateStr);
-          sessionDatesByPatient.set(matchedPatientId, list);
-        }
+        const d = eventDate;
+        const dateStr = `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+        const list = sessionDatesByPatient.get(matchedPatientId) || [];
+        list.push(dateStr);
+        sessionDatesByPatient.set(matchedPatientId, list);
       }
     }
   }
