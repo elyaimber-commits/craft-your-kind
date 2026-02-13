@@ -90,7 +90,7 @@ export default function WeeklyFinance() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, name, session_price");
+        .select("id, name, session_price, commission_enabled, commission_type, commission_value");
       if (error) throw error;
       return data || [];
     },
@@ -179,7 +179,16 @@ export default function WeeklyFinance() {
       }
       if (!matchedPatient) continue;
 
-      const price = overrideMap.has(event.id) ? overrideMap.get(event.id)! : matchedPatient.session_price;
+      const basePrice = overrideMap.has(event.id) ? overrideMap.get(event.id)! : matchedPatient.session_price;
+      let commission = 0;
+      if (matchedPatient.commission_enabled && matchedPatient.commission_value != null) {
+        if (matchedPatient.commission_type === "percent") {
+          commission = basePrice * (matchedPatient.commission_value / 100);
+        } else {
+          commission = matchedPatient.commission_value;
+        }
+      }
+      const price = basePrice - commission;
       result[dayIndex].push({ price, summary: event.summary || "" });
     }
     return result;
