@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          date: string
+          id: string
+          name: string
+          slot_index: number
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          date: string
+          id?: string
+          name?: string
+          slot_index?: number
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          date?: string
+          id?: string
+          name?: string
+          slot_index?: number
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       event_aliases: {
         Row: {
           created_at: string

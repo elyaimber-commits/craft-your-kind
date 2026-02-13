@@ -168,6 +168,10 @@ const Dashboard = () => {
               <BarChart3 className="ml-2 h-4 w-4" />
               ניתוח חודשי
             </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/weekly-finance")}>
+              <BarChart3 className="ml-2 h-4 w-4" />
+              כלכלה שבועית
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/payments")}>
               <History className="ml-2 h-4 w-4" />
               היסטוריה
