@@ -253,10 +253,17 @@ serve(async (req) => {
           const eventsData = await eventsRes.json();
           const events = eventsData.items || [];
 
-          // Find yellow events (colorId "5") matching patient name OR any alias
-          const matchingEvents = events.filter((e: any) =>
-            e.colorId === "5" && aliasNames.has((e.summary || "").trim().toLowerCase())
-          );
+          // Find events matching patient name OR any alias
+          // Match yellow (5 = summary written) OR default (no color = before summary) events
+          // Skip purple (3 = already paid) and flamingo (4 = cancelled)
+          const matchingEvents = events.filter((e: any) => {
+            const nameMatch = aliasNames.has((e.summary || "").trim().toLowerCase());
+            if (!nameMatch) return false;
+            const color = e.colorId;
+            // Skip already-paid (purple=3) and cancelled (flamingo=4)
+            if (color === "3" || color === "4") return false;
+            return true;
+          });
 
           for (const event of matchingEvents) {
             const patchRes = await fetch(
