@@ -123,11 +123,15 @@ serve(async (req) => {
     // All patient IDs to mark as paid (parent + children for institutions)
     const allPatientIds = [patient.id, ...childPatientIds];
 
+    // We'll collect matched event IDs per patient after scanning the calendar,
+    // then update payment records with them. For now, create/update payment records.
+    // Store payment record IDs for later update with event IDs.
+    const paymentRecordIds = new Map<string, string>(); // pid -> payment id
+
     for (const pid of allPatientIds) {
-      // Check if payment record exists for this patient+month
       const { data: existingPayment } = await supabase
         .from('payments')
-        .select('id')
+        .select('id, paid_event_ids')
         .eq('patient_id', pid)
         .eq('month', month)
         .single();
@@ -142,8 +146,9 @@ serve(async (req) => {
             receipt_number: pid === patient.id ? receiptNumber : undefined,
           })
           .eq('id', existingPayment.id);
+        paymentRecordIds.set(pid, existingPayment.id);
       } else {
-        await supabase
+        const { data: newPayment } = await supabase
           .from('payments')
           .insert({
             therapist_id: patient.therapist_id,
@@ -154,7 +159,10 @@ serve(async (req) => {
             paid: true,
             paid_at: new Date().toISOString(),
             receipt_number: pid === patient.id ? receiptNumber : null,
-          });
+          })
+          .select('id')
+          .single();
+        if (newPayment) paymentRecordIds.set(pid, newPayment.id);
       }
     }
 
@@ -244,6 +252,8 @@ serve(async (req) => {
 
         console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
 
+        const matchedEventsByPatient = new Map<string, string[]>();
+
         for (const cal of calendars) {
           const eventsRes = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
@@ -277,11 +287,57 @@ serve(async (req) => {
                 body: JSON.stringify({ colorId: "3" }), // Purple = paid
               }
             );
-            if (patchRes.ok) colorUpdated++;
+            if (patchRes.ok) {
+              colorUpdated++;
+              // Track which patient this event belongs to for paid_event_ids
+              const eventName = (event.summary || "").trim().toLowerCase();
+              for (const pid of allPatientIds) {
+                // Check if this event matches this patient
+                const pName = pid === patient.id ? patientNameLower : null;
+                if (pName && eventName === pName) {
+                  if (!matchedEventsByPatient.has(pid)) matchedEventsByPatient.set(pid, []);
+                  matchedEventsByPatient.get(pid)!.push(event.id);
+                  break;
+                }
+                // Check aliases
+                if (aliasNames.has(eventName)) {
+                  if (!matchedEventsByPatient.has(pid)) matchedEventsByPatient.set(pid, []);
+                  matchedEventsByPatient.get(pid)!.push(event.id);
+                  break;
+                }
+              }
+            }
           }
         }
 
         console.log(`Updated ${colorUpdated} calendar events to purple for ${patient.name}`);
+
+        // Update payment records with matched event IDs
+        for (const [pid, eventIds] of matchedEventsByPatient.entries()) {
+          const paymentId = paymentRecordIds.get(pid);
+          if (paymentId && eventIds.length > 0) {
+            // Get existing paid_event_ids to merge
+            const { data: existingPayment } = await supabase
+              .from('payments')
+              .select('paid_event_ids')
+              .eq('id', paymentId)
+              .single();
+            
+            const existingIds = new Set((existingPayment?.paid_event_ids || []) as string[]);
+            eventIds.forEach(id => existingIds.add(id));
+            const allEventIds = Array.from(existingIds);
+
+            await supabase
+              .from('payments')
+              .update({
+                paid_event_ids: allEventIds,
+                session_count: allEventIds.length,
+              })
+              .eq('id', paymentId);
+            
+            console.log(`Updated payment for patient ${pid} with ${allEventIds.length} event IDs`);
+          }
+        }
       }
     }
 
