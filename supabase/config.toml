@@ -1,4 +1,4 @@
-project_id = "lktbzujgbqyaszwnaqlqv"
+project_id = "lktbzujgbqyazwnaqlqv"
 
 [functions.google-auth]
 verify_jwt = false
