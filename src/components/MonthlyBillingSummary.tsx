@@ -422,12 +422,16 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       .reduce((s, session) => s + (session.sessionPrice ?? b.patient.session_price), 0);
   }, 0);
 
-  // Calculate carried-over debt from prior months
+  // Calculate carried-over debt from prior months (with per-month breakdown)
   const priorDebtByPatient = new Map<string, number>();
+  const priorDebtDetailByPatient = new Map<string, { month: string; debt: number }[]>();
   priorDebts.forEach((p: any) => {
     const debt = (p.total_billed || 0) - (p.amount || 0);
     if (debt > 0) {
       priorDebtByPatient.set(p.patient_id, (priorDebtByPatient.get(p.patient_id) || 0) + debt);
+      const details = priorDebtDetailByPatient.get(p.patient_id) || [];
+      details.push({ month: p.month, debt });
+      priorDebtDetailByPatient.set(p.patient_id, details);
     }
   });
 
@@ -486,11 +490,20 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           <div className="space-y-3">
             {filteredBillingData.map((billing) => {
               const patientPriorDebt = priorDebtByPatient.get(billing.patient.id) || 0;
+              const patientDebtDetails = priorDebtDetailByPatient.get(billing.patient.id) || [];
+              const formatMonthLabel = (m: string) => {
+                const [y, mo] = m.split("-");
+                const d = new Date(parseInt(y), parseInt(mo) - 1);
+                return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+              };
               return (
                 <div key={billing.patient.id}>
                   {patientPriorDebt > 0 && (
                     <div className="text-xs text-destructive font-medium mb-1 pr-2">
                       חוב מחודשים קודמים: ₪{patientPriorDebt}
+                      <span className="text-muted-foreground font-normal mr-2">
+                        ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
+                      </span>
                     </div>
                   )}
                   <PatientBillingCard
