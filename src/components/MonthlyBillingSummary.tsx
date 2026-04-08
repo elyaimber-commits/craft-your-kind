@@ -135,6 +135,21 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  // Fetch prior months' payments to calculate carried-over debt
+  const { data: priorDebts = [] } = useQuery({
+    queryKey: ["payments-prior-debts", currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("patient_id, amount, total_billed, month")
+        .lt("month", currentMonth)
+        .not("total_billed", "is", null);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const { data: aliases = [] } = useQuery({
     queryKey: ["event-aliases"],
     queryFn: async () => {
