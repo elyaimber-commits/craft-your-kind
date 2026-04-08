@@ -76,6 +76,7 @@ const PatientBillingCard = ({
   onToggle,
   generateWhatsAppMessage,
   calendarEventName,
+  priorDebtDetails = [],
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
