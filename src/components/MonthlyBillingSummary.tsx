@@ -8,6 +8,7 @@ import { Calendar, ChevronRight, ChevronLeft, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
+import IgnoredEventsManager from "@/components/IgnoredEventsManager";
 
 interface Patient {
   id: string;
