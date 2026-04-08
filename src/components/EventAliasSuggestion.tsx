@@ -179,6 +179,15 @@ const EventAliasSuggestion = ({
               הצג רק מומלצים
             </button>
           )}
+          {!showAddForm && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <UserPlus className="h-3 w-3" />
+              או הוסף כמטופל חדש
+            </button>
+          )}
         </div>
       )}
 
