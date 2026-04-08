@@ -279,67 +279,62 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
 
-  // === Auto-sync purple calendar events → paid status in DB (per-session) ===
+  // === Auto-sync: save total_billed + purple calendar events → paid status in DB ===
   useEffect(() => {
     if (!user || !calendarData?.events || syncedMonthsRef.current.has(currentMonth)) return;
     
-    const updates: { patientId: string; purpleEventIds: string[]; total: number }[] = [];
-    
-    billingData.forEach((billing) => {
-      const purpleSessions = billing.sessions.filter((s) => {
-        const event = events.find((e) => e.id === s.eventId);
-        return event?.colorId === "3" && s.eventId;
-      });
-      
-      if (purpleSessions.length > 0) {
-        const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
-        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
-        const newPurpleIds = purpleSessions
-          .map(s => s.eventId!)
-          .filter(id => !existingPaidIds.has(id));
-        
-        if (newPurpleIds.length > 0) {
-          const allPaidIds = [...Array.from(existingPaidIds), ...newPurpleIds] as string[];
-          updates.push({
-            patientId: billing.patient.id,
-            purpleEventIds: allPaidIds,
-            total: allPaidIds.length * billing.patient.session_price,
-          });
-        }
-      }
-    });
-    
-    if (updates.length === 0) {
-      syncedMonthsRef.current.add(currentMonth);
-      return;
-    }
-    
     const syncPayments = async () => {
-      for (const update of updates) {
-        const existingPayment = payments.find((p) => p.patient_id === update.patientId);
-        const allPaid = billingData.find(b => b.patient.id === update.patientId)?.sessions.length === update.purpleEventIds.length;
-        
+      for (const billing of billingData) {
+        const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
+
+        // Find purple (paid) sessions
+        const purpleSessions = billing.sessions.filter((s) => {
+          const event = events.find((e) => e.id === s.eventId);
+          return event?.colorId === "3" && s.eventId;
+        });
+
+        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
+        const allPaidIds = [...new Set([
+          ...Array.from(existingPaidIds),
+          ...purpleSessions.map(s => s.eventId!),
+        ])] as string[];
+
+        const paidAmount = billing.sessions
+          .filter(s => s.eventId && allPaidIds.includes(s.eventId))
+          .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+
+        const allPaid = allPaidIds.length === billing.sessions.length;
+
         if (existingPayment) {
-          await supabase
-            .from("payments")
-            .update({
-              paid: allPaid,
-              paid_at: new Date().toISOString(),
-              amount: update.total,
-              session_count: update.purpleEventIds.length,
-              paid_event_ids: update.purpleEventIds,
-            })
-            .eq("id", existingPayment.id);
+          // Update total_billed + paid info
+          const needsUpdate =
+            (existingPayment as any).total_billed !== billing.total ||
+            allPaidIds.length !== existingPaidIds.size;
+          if (needsUpdate) {
+            await supabase
+              .from("payments")
+              .update({
+                total_billed: billing.total,
+                paid: allPaid,
+                paid_at: allPaidIds.length > 0 ? new Date().toISOString() : existingPayment.paid_at,
+                amount: paidAmount,
+                session_count: allPaidIds.length,
+                paid_event_ids: allPaidIds,
+              })
+              .eq("id", existingPayment.id);
+          }
         } else {
+          // Create new payment record with total_billed
           await supabase.from("payments").insert({
             therapist_id: user.id,
-            patient_id: update.patientId,
+            patient_id: billing.patient.id,
             month: currentMonth,
-            amount: update.total,
-            session_count: update.purpleEventIds.length,
+            amount: paidAmount,
+            total_billed: billing.total,
+            session_count: allPaidIds.length,
             paid: allPaid,
-            paid_at: new Date().toISOString(),
-            paid_event_ids: update.purpleEventIds,
+            paid_at: allPaidIds.length > 0 ? new Date().toISOString() : null,
+            paid_event_ids: allPaidIds,
           });
         }
       }
