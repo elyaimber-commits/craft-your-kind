@@ -519,7 +519,39 @@ const PatientBillingCard = ({
                 <span>סה״כ: ₪{billing.total}</span>
               </div>
             </div>
+
+            {/* Prior months debt section */}
+            {priorDebtDetails.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-dashed">
+                <p className="text-xs font-medium text-destructive mb-2">חובות מחודשים קודמים:</p>
+                <div className="space-y-1">
+                  {priorDebtDetails.map((detail) => {
+                    const isToggling = togglingPriorMonth === detail.month;
+                    return (
+                      <div
+                        key={detail.month}
+                        className="flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 border-r-destructive bg-destructive/5 cursor-pointer transition-colors hover:bg-destructive/10"
+                        onClick={() => togglePriorMonthPaid(detail)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded border border-destructive/40 flex items-center justify-center">
+                            {isToggling && <Loader2 className="h-3 w-3 animate-spin" />}
+                          </div>
+                          <span>{formatMonthLabel(detail.month)}</span>
+                        </div>
+                        <span className="font-medium text-destructive">₪{detail.debt}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between pt-2 font-medium text-destructive text-sm">
+                  <span>סה״כ חוב קודם</span>
+                  <span>₪{priorDebtDetails.reduce((s, d) => s + d.debt, 0)}</span>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
         </div>
       )}
     </div>
