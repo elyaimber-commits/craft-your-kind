@@ -490,11 +490,20 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           <div className="space-y-3">
             {filteredBillingData.map((billing) => {
               const patientPriorDebt = priorDebtByPatient.get(billing.patient.id) || 0;
+              const patientDebtDetails = priorDebtDetailByPatient.get(billing.patient.id) || [];
+              const formatMonthLabel = (m: string) => {
+                const [y, mo] = m.split("-");
+                const d = new Date(parseInt(y), parseInt(mo) - 1);
+                return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+              };
               return (
                 <div key={billing.patient.id}>
                   {patientPriorDebt > 0 && (
                     <div className="text-xs text-destructive font-medium mb-1 pr-2">
                       חוב מחודשים קודמים: ₪{patientPriorDebt}
+                      <span className="text-muted-foreground font-normal mr-2">
+                        ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
+                      </span>
                     </div>
                   )}
                   <PatientBillingCard
