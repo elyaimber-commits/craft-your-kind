@@ -141,7 +141,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payments")
-        .select("patient_id, amount, total_billed, month")
+        .select("id, patient_id, amount, total_billed, month")
         .lt("month", currentMonth)
         .not("total_billed", "is", null);
       if (error) throw error;
