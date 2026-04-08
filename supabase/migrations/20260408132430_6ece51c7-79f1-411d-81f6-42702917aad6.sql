@@ -1,0 +1,1 @@
+ALTER TABLE public.payments ADD COLUMN total_billed numeric DEFAULT NULL;

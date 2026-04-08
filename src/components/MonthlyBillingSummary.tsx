@@ -135,6 +135,21 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  // Fetch prior months' payments to calculate carried-over debt
+  const { data: priorDebts = [] } = useQuery({
+    queryKey: ["payments-prior-debts", currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("patient_id, amount, total_billed, month")
+        .lt("month", currentMonth)
+        .not("total_billed", "is", null);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const { data: aliases = [] } = useQuery({
     queryKey: ["event-aliases"],
     queryFn: async () => {
@@ -264,67 +279,62 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => b.sessions.length > 0)
     .sort((a, b) => b.total - a.total);
 
-  // === Auto-sync purple calendar events → paid status in DB (per-session) ===
+  // === Auto-sync: save total_billed + purple calendar events → paid status in DB ===
   useEffect(() => {
     if (!user || !calendarData?.events || syncedMonthsRef.current.has(currentMonth)) return;
     
-    const updates: { patientId: string; purpleEventIds: string[]; total: number }[] = [];
-    
-    billingData.forEach((billing) => {
-      const purpleSessions = billing.sessions.filter((s) => {
-        const event = events.find((e) => e.id === s.eventId);
-        return event?.colorId === "3" && s.eventId;
-      });
-      
-      if (purpleSessions.length > 0) {
-        const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
-        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
-        const newPurpleIds = purpleSessions
-          .map(s => s.eventId!)
-          .filter(id => !existingPaidIds.has(id));
-        
-        if (newPurpleIds.length > 0) {
-          const allPaidIds = [...Array.from(existingPaidIds), ...newPurpleIds] as string[];
-          updates.push({
-            patientId: billing.patient.id,
-            purpleEventIds: allPaidIds,
-            total: allPaidIds.length * billing.patient.session_price,
-          });
-        }
-      }
-    });
-    
-    if (updates.length === 0) {
-      syncedMonthsRef.current.add(currentMonth);
-      return;
-    }
-    
     const syncPayments = async () => {
-      for (const update of updates) {
-        const existingPayment = payments.find((p) => p.patient_id === update.patientId);
-        const allPaid = billingData.find(b => b.patient.id === update.patientId)?.sessions.length === update.purpleEventIds.length;
-        
+      for (const billing of billingData) {
+        const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
+
+        // Find purple (paid) sessions
+        const purpleSessions = billing.sessions.filter((s) => {
+          const event = events.find((e) => e.id === s.eventId);
+          return event?.colorId === "3" && s.eventId;
+        });
+
+        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
+        const allPaidIds = [...new Set([
+          ...Array.from(existingPaidIds),
+          ...purpleSessions.map(s => s.eventId!),
+        ])] as string[];
+
+        const paidAmount = billing.sessions
+          .filter(s => s.eventId && allPaidIds.includes(s.eventId))
+          .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+
+        const allPaid = allPaidIds.length === billing.sessions.length;
+
         if (existingPayment) {
-          await supabase
-            .from("payments")
-            .update({
-              paid: allPaid,
-              paid_at: new Date().toISOString(),
-              amount: update.total,
-              session_count: update.purpleEventIds.length,
-              paid_event_ids: update.purpleEventIds,
-            })
-            .eq("id", existingPayment.id);
+          // Update total_billed + paid info
+          const needsUpdate =
+            (existingPayment as any).total_billed !== billing.total ||
+            allPaidIds.length !== existingPaidIds.size;
+          if (needsUpdate) {
+            await supabase
+              .from("payments")
+              .update({
+                total_billed: billing.total,
+                paid: allPaid,
+                paid_at: allPaidIds.length > 0 ? new Date().toISOString() : existingPayment.paid_at,
+                amount: paidAmount,
+                session_count: allPaidIds.length,
+                paid_event_ids: allPaidIds,
+              })
+              .eq("id", existingPayment.id);
+          }
         } else {
+          // Create new payment record with total_billed
           await supabase.from("payments").insert({
             therapist_id: user.id,
-            patient_id: update.patientId,
+            patient_id: billing.patient.id,
             month: currentMonth,
-            amount: update.total,
-            session_count: update.purpleEventIds.length,
+            amount: paidAmount,
+            total_billed: billing.total,
+            session_count: allPaidIds.length,
             paid: allPaid,
-            paid_at: new Date().toISOString(),
-            paid_event_ids: update.purpleEventIds,
+            paid_at: allPaidIds.length > 0 ? new Date().toISOString() : null,
+            paid_event_ids: allPaidIds,
           });
         }
       }
@@ -412,10 +422,27 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       .reduce((s, session) => s + (session.sessionPrice ?? b.patient.session_price), 0);
   }, 0);
 
+  // Calculate carried-over debt from prior months
+  const priorDebtByPatient = new Map<string, number>();
+  priorDebts.forEach((p: any) => {
+    const debt = (p.total_billed || 0) - (p.amount || 0);
+    if (debt > 0) {
+      priorDebtByPatient.set(p.patient_id, (priorDebtByPatient.get(p.patient_id) || 0) + debt);
+    }
+  });
+
+  const totalPriorDebt = filteredBillingData.reduce((sum, b) => {
+    return sum + (priorDebtByPatient.get(b.patient.id) || 0);
+  }, 0);
+  // Also include prior debt for patients not in current month billing
+  const allPriorDebt = Array.from(priorDebtByPatient.values()).reduce((sum, d) => sum + d, 0);
+  const currentMonthRemaining = totalBilled - totalPaid;
+  const totalRemaining = currentMonthRemaining + allPriorDebt;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             סיכום חיוב
@@ -430,8 +457,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             </Button>
           </div>
           {billingData.length > 0 && (
-            <div className="text-sm font-normal text-muted-foreground">
-              שולם: ₪{totalPaid} / ₪{totalBilled} · נותר: ₪{totalBilled - totalPaid}
+            <div className="text-sm font-normal text-muted-foreground space-y-0.5">
+              <div>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</div>
+              {allPriorDebt > 0 && (
+                <div className="text-destructive font-medium">חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}</div>
+              )}
             </div>
           )}
         </CardTitle>
@@ -454,22 +484,31 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           </p>
         ) : (
           <div className="space-y-3">
-            {filteredBillingData.map((billing) => (
-              <PatientBillingCard
-                key={billing.patient.id}
-                billing={billing}
-                payment={payments.find((p) => p.patient_id === billing.patient.id)}
-                currentMonth={currentMonth}
-                isExpanded={expandedPatient === billing.patient.id}
-                onToggle={() =>
-                  setExpandedPatient(
-                    expandedPatient === billing.patient.id ? null : billing.patient.id
-                  )
-                }
-                generateWhatsAppMessage={generateWhatsAppMessage}
-                calendarEventName={calendarNameByPatient.get(billing.patient.id)}
-              />
-            ))}
+            {filteredBillingData.map((billing) => {
+              const patientPriorDebt = priorDebtByPatient.get(billing.patient.id) || 0;
+              return (
+                <div key={billing.patient.id}>
+                  {patientPriorDebt > 0 && (
+                    <div className="text-xs text-destructive font-medium mb-1 pr-2">
+                      חוב מחודשים קודמים: ₪{patientPriorDebt}
+                    </div>
+                  )}
+                  <PatientBillingCard
+                    billing={billing}
+                    payment={payments.find((p) => p.patient_id === billing.patient.id)}
+                    currentMonth={currentMonth}
+                    isExpanded={expandedPatient === billing.patient.id}
+                    onToggle={() =>
+                      setExpandedPatient(
+                        expandedPatient === billing.patient.id ? null : billing.patient.id
+                      )
+                    }
+                    generateWhatsAppMessage={generateWhatsAppMessage}
+                    calendarEventName={calendarNameByPatient.get(billing.patient.id)}
+                  />
+                </div>
+              );
+            })}
 
             {filteredUnmatched.length > 0 && (
               <div className="space-y-2 pt-2 border-t">

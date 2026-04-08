@@ -203,6 +203,7 @@ export type Database = {
           session_count: number
           status: string
           therapist_id: string
+          total_billed: number | null
           updated_at: string
         }
         Insert: {
@@ -221,6 +222,7 @@ export type Database = {
           session_count?: number
           status?: string
           therapist_id: string
+          total_billed?: number | null
           updated_at?: string
         }
         Update: {
@@ -239,6 +241,7 @@ export type Database = {
           session_count?: number
           status?: string
           therapist_id?: string
+          total_billed?: number | null
           updated_at?: string
         }
         Relationships: [
