@@ -518,6 +518,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     }
                     generateWhatsAppMessage={generateWhatsAppMessage}
                     calendarEventName={calendarNameByPatient.get(billing.patient.id)}
+                    priorDebtDetails={patientDebtDetails}
                   />
                 </div>
               );
