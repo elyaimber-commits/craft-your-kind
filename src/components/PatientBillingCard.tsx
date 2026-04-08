@@ -38,6 +38,12 @@ interface PatientBilling {
   childPatients?: Patient[];
 }
 
+interface PriorDebtDetail {
+  month: string;
+  debt: number;
+  paymentId?: string;
+}
+
 interface Payment {
   id: string;
   patient_id: string;
@@ -48,6 +54,7 @@ interface Payment {
   paid_at: string | null;
   receipt_number: string | null;
   paid_event_ids?: string[];
+  total_billed?: number;
 }
 
 interface PatientBillingCardProps {
@@ -58,6 +65,7 @@ interface PatientBillingCardProps {
   onToggle: () => void;
   generateWhatsAppMessage: (billing: PatientBilling) => string;
   calendarEventName?: string;
+  priorDebtDetails?: PriorDebtDetail[];
 }
 
 const PatientBillingCard = ({
