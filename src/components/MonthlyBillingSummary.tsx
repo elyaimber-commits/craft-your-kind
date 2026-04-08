@@ -484,22 +484,31 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           </p>
         ) : (
           <div className="space-y-3">
-            {filteredBillingData.map((billing) => (
-              <PatientBillingCard
-                key={billing.patient.id}
-                billing={billing}
-                payment={payments.find((p) => p.patient_id === billing.patient.id)}
-                currentMonth={currentMonth}
-                isExpanded={expandedPatient === billing.patient.id}
-                onToggle={() =>
-                  setExpandedPatient(
-                    expandedPatient === billing.patient.id ? null : billing.patient.id
-                  )
-                }
-                generateWhatsAppMessage={generateWhatsAppMessage}
-                calendarEventName={calendarNameByPatient.get(billing.patient.id)}
-              />
-            ))}
+            {filteredBillingData.map((billing) => {
+              const patientPriorDebt = priorDebtByPatient.get(billing.patient.id) || 0;
+              return (
+                <div key={billing.patient.id}>
+                  {patientPriorDebt > 0 && (
+                    <div className="text-xs text-destructive font-medium mb-1 pr-2">
+                      חוב מחודשים קודמים: ₪{patientPriorDebt}
+                    </div>
+                  )}
+                  <PatientBillingCard
+                    billing={billing}
+                    payment={payments.find((p) => p.patient_id === billing.patient.id)}
+                    currentMonth={currentMonth}
+                    isExpanded={expandedPatient === billing.patient.id}
+                    onToggle={() =>
+                      setExpandedPatient(
+                        expandedPatient === billing.patient.id ? null : billing.patient.id
+                      )
+                    }
+                    generateWhatsAppMessage={generateWhatsAppMessage}
+                    calendarEventName={calendarNameByPatient.get(billing.patient.id)}
+                  />
+                </div>
+              );
+            })}
 
             {filteredUnmatched.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
