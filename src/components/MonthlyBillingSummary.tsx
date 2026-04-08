@@ -487,6 +487,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 ))}
               </div>
             )}
+
+            <IgnoredEventsManager ignoredEvents={ignoredEvents} />
           </div>
         )}
       </CardContent>
