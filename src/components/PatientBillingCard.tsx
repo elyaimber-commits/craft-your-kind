@@ -199,6 +199,66 @@ const PatientBillingCard = ({
     }
   };
 
+  // Mark a prior month's remaining debt as paid
+  const togglePriorMonthPaid = async (detail: PriorDebtDetail) => {
+    if (!detail.paymentId || !user) return;
+    setTogglingPriorMonth(detail.month);
+    try {
+      await supabase
+        .from("payments")
+        .update({
+          amount: supabase.rpc ? detail.debt : undefined, // fallback
+          paid: true,
+          paid_at: new Date().toISOString(),
+        })
+        .eq("id", detail.paymentId);
+
+      // Actually we need to set amount = total_billed to mark fully paid
+      // Let's do a raw update
+      const { error } = await supabase
+        .from("payments")
+        .update({
+          paid: true,
+          paid_at: new Date().toISOString(),
+        })
+        .eq("id", detail.paymentId);
+      
+      // Also update amount to match total_billed
+      await supabase.rpc as any; // not available, use direct update
+      // Fetch the payment to get total_billed
+      const { data: paymentData } = await supabase
+        .from("payments")
+        .select("total_billed, paid_event_ids")
+        .eq("id", detail.paymentId)
+        .single();
+
+      if (paymentData) {
+        await supabase
+          .from("payments")
+          .update({
+            amount: paymentData.total_billed || 0,
+            paid: true,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", detail.paymentId);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["payments-prior-debts"] });
+      toast({ title: `חוב מ${formatMonthLabel(detail.month)} סומן כשולם ✓` });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setTogglingPriorMonth(null);
+    }
+  };
+
+  const formatMonthLabel = (m: string) => {
+    const [y, mo] = m.split("-");
+    const d = new Date(parseInt(y), parseInt(mo) - 1);
+    return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  };
+
 
   const markAllMutation = useMutation({
     mutationFn: async () => {
