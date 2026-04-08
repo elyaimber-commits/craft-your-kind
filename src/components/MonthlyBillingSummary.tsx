@@ -422,10 +422,27 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       .reduce((s, session) => s + (session.sessionPrice ?? b.patient.session_price), 0);
   }, 0);
 
+  // Calculate carried-over debt from prior months
+  const priorDebtByPatient = new Map<string, number>();
+  priorDebts.forEach((p: any) => {
+    const debt = (p.total_billed || 0) - (p.amount || 0);
+    if (debt > 0) {
+      priorDebtByPatient.set(p.patient_id, (priorDebtByPatient.get(p.patient_id) || 0) + debt);
+    }
+  });
+
+  const totalPriorDebt = filteredBillingData.reduce((sum, b) => {
+    return sum + (priorDebtByPatient.get(b.patient.id) || 0);
+  }, 0);
+  // Also include prior debt for patients not in current month billing
+  const allPriorDebt = Array.from(priorDebtByPatient.values()).reduce((sum, d) => sum + d, 0);
+  const currentMonthRemaining = totalBilled - totalPaid;
+  const totalRemaining = currentMonthRemaining + allPriorDebt;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             סיכום חיוב
@@ -440,8 +457,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             </Button>
           </div>
           {billingData.length > 0 && (
-            <div className="text-sm font-normal text-muted-foreground">
-              שולם: ₪{totalPaid} / ₪{totalBilled} · נותר: ₪{totalBilled - totalPaid}
+            <div className="text-sm font-normal text-muted-foreground space-y-0.5">
+              <div>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</div>
+              {allPriorDebt > 0 && (
+                <div className="text-destructive font-medium">חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}</div>
+              )}
             </div>
           )}
         </CardTitle>
