@@ -424,13 +424,13 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
 
   // Calculate carried-over debt from prior months (with per-month breakdown)
   const priorDebtByPatient = new Map<string, number>();
-  const priorDebtDetailByPatient = new Map<string, { month: string; debt: number }[]>();
+  const priorDebtDetailByPatient = new Map<string, { month: string; debt: number; paymentId?: string }[]>();
   priorDebts.forEach((p: any) => {
     const debt = (p.total_billed || 0) - (p.amount || 0);
     if (debt > 0) {
       priorDebtByPatient.set(p.patient_id, (priorDebtByPatient.get(p.patient_id) || 0) + debt);
       const details = priorDebtDetailByPatient.get(p.patient_id) || [];
-      details.push({ month: p.month, debt });
+      details.push({ month: p.month, debt, paymentId: p.id });
       priorDebtDetailByPatient.set(p.patient_id, details);
     }
   });
