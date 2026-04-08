@@ -84,6 +84,7 @@ const PatientBillingCard = ({
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
   const [editingPriceEventId, setEditingPriceEventId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState("");
+  const [togglingPriorMonth, setTogglingPriorMonth] = useState<string | null>(null);
 
   const paidEventIds = new Set(payment?.paid_event_ids || []);
   const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
