@@ -204,31 +204,10 @@ const PatientBillingCard = ({
     if (!detail.paymentId || !user) return;
     setTogglingPriorMonth(detail.month);
     try {
-      await supabase
-        .from("payments")
-        .update({
-          amount: supabase.rpc ? detail.debt : undefined, // fallback
-          paid: true,
-          paid_at: new Date().toISOString(),
-        })
-        .eq("id", detail.paymentId);
-
-      // Actually we need to set amount = total_billed to mark fully paid
-      // Let's do a raw update
-      const { error } = await supabase
-        .from("payments")
-        .update({
-          paid: true,
-          paid_at: new Date().toISOString(),
-        })
-        .eq("id", detail.paymentId);
-      
-      // Also update amount to match total_billed
-      await supabase.rpc as any; // not available, use direct update
-      // Fetch the payment to get total_billed
+      // Fetch current payment to get total_billed
       const { data: paymentData } = await supabase
         .from("payments")
-        .select("total_billed, paid_event_ids")
+        .select("amount, total_billed")
         .eq("id", detail.paymentId)
         .single();
 
@@ -236,7 +215,7 @@ const PatientBillingCard = ({
         await supabase
           .from("payments")
           .update({
-            amount: paymentData.total_billed || 0,
+            amount: paymentData.total_billed || (paymentData.amount + detail.debt),
             paid: true,
             paid_at: new Date().toISOString(),
           })
