@@ -38,6 +38,12 @@ interface PatientBilling {
   childPatients?: Patient[];
 }
 
+interface PriorDebtDetail {
+  month: string;
+  debt: number;
+  paymentId?: string;
+}
+
 interface Payment {
   id: string;
   patient_id: string;
@@ -48,6 +54,7 @@ interface Payment {
   paid_at: string | null;
   receipt_number: string | null;
   paid_event_ids?: string[];
+  total_billed?: number;
 }
 
 interface PatientBillingCardProps {
@@ -58,6 +65,7 @@ interface PatientBillingCardProps {
   onToggle: () => void;
   generateWhatsAppMessage: (billing: PatientBilling) => string;
   calendarEventName?: string;
+  priorDebtDetails?: PriorDebtDetail[];
 }
 
 const PatientBillingCard = ({
@@ -68,6 +76,7 @@ const PatientBillingCard = ({
   onToggle,
   generateWhatsAppMessage,
   calendarEventName,
+  priorDebtDetails = [],
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -76,6 +85,7 @@ const PatientBillingCard = ({
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
   const [editingPriceEventId, setEditingPriceEventId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState("");
+  const [togglingPriorMonth, setTogglingPriorMonth] = useState<string | null>(null);
 
   const paidEventIds = new Set(payment?.paid_event_ids || []);
   const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
@@ -187,6 +197,45 @@ const PatientBillingCard = ({
     } finally {
       setEditingPriceEventId(null);
     }
+  };
+
+  // Mark a prior month's remaining debt as paid
+  const togglePriorMonthPaid = async (detail: PriorDebtDetail) => {
+    if (!detail.paymentId || !user) return;
+    setTogglingPriorMonth(detail.month);
+    try {
+      // Fetch current payment to get total_billed
+      const { data: paymentData } = await supabase
+        .from("payments")
+        .select("amount, total_billed")
+        .eq("id", detail.paymentId)
+        .single();
+
+      if (paymentData) {
+        await supabase
+          .from("payments")
+          .update({
+            amount: paymentData.total_billed || (paymentData.amount + detail.debt),
+            paid: true,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", detail.paymentId);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["payments-prior-debts"] });
+      toast({ title: `חוב מ${formatMonthLabel(detail.month)} סומן כשולם ✓` });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setTogglingPriorMonth(null);
+    }
+  };
+
+  const formatMonthLabel = (m: string) => {
+    const [y, mo] = m.split("-");
+    const d = new Date(parseInt(y), parseInt(mo) - 1);
+    return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
   };
 
 
@@ -470,6 +519,37 @@ const PatientBillingCard = ({
                 <span>סה״כ: ₪{billing.total}</span>
               </div>
             </div>
+
+            {/* Prior months debt section */}
+            {priorDebtDetails.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-dashed">
+                <p className="text-xs font-medium text-destructive mb-2">חובות מחודשים קודמים:</p>
+                <div className="space-y-1">
+                  {priorDebtDetails.map((detail) => {
+                    const isToggling = togglingPriorMonth === detail.month;
+                    return (
+                      <div
+                        key={detail.month}
+                        className="flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 border-r-destructive bg-destructive/5 cursor-pointer transition-colors hover:bg-destructive/10"
+                        onClick={() => togglePriorMonthPaid(detail)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded border border-destructive/40 flex items-center justify-center">
+                            {isToggling && <Loader2 className="h-3 w-3 animate-spin" />}
+                          </div>
+                          <span>{formatMonthLabel(detail.month)}</span>
+                        </div>
+                        <span className="font-medium text-destructive">₪{detail.debt}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between pt-2 font-medium text-destructive text-sm">
+                  <span>סה״כ חוב קודם</span>
+                  <span>₪{priorDebtDetails.reduce((s, d) => s + d.debt, 0)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

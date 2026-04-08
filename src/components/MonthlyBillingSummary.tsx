@@ -141,7 +141,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payments")
-        .select("patient_id, amount, total_billed, month")
+        .select("id, patient_id, amount, total_billed, month")
         .lt("month", currentMonth)
         .not("total_billed", "is", null);
       if (error) throw error;
@@ -424,13 +424,13 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
 
   // Calculate carried-over debt from prior months (with per-month breakdown)
   const priorDebtByPatient = new Map<string, number>();
-  const priorDebtDetailByPatient = new Map<string, { month: string; debt: number }[]>();
+  const priorDebtDetailByPatient = new Map<string, { month: string; debt: number; paymentId?: string }[]>();
   priorDebts.forEach((p: any) => {
     const debt = (p.total_billed || 0) - (p.amount || 0);
     if (debt > 0) {
       priorDebtByPatient.set(p.patient_id, (priorDebtByPatient.get(p.patient_id) || 0) + debt);
       const details = priorDebtDetailByPatient.get(p.patient_id) || [];
-      details.push({ month: p.month, debt });
+      details.push({ month: p.month, debt, paymentId: p.id });
       priorDebtDetailByPatient.set(p.patient_id, details);
     }
   });
@@ -518,6 +518,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     }
                     generateWhatsAppMessage={generateWhatsAppMessage}
                     calendarEventName={calendarNameByPatient.get(billing.patient.id)}
+                    priorDebtDetails={patientDebtDetails}
                   />
                 </div>
               );
