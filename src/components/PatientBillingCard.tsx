@@ -552,7 +552,6 @@ const PatientBillingCard = ({
             )}
           </div>
         </div>
-        </div>
       )}
     </div>
   );
