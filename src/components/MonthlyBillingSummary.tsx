@@ -431,7 +431,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           </div>
           {billingData.length > 0 && (
             <div className="text-sm font-normal text-muted-foreground">
-              שולם: ₪{totalPaid} / ₪{totalBilled}
+              שולם: ₪{totalPaid} / ₪{totalBilled} · נותר: ₪{totalBilled - totalPaid}
             </div>
           )}
         </CardTitle>
