@@ -556,8 +556,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     <div className="flex items-center gap-1.5 mr-auto" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         id={`mindme-${billing.patient.id}`}
-                        checked={(billing.patient as any).mindme === true}
-                        onCheckedChange={() => toggleMindMe(billing.patient.id, (billing.patient as any).mindme)}
+                       checked={billing.patient.mindme === true}
+                       onCheckedChange={() => toggleMindMe(billing.patient.id, !!billing.patient.mindme)}
                         className="h-4 w-4"
                       />
                       <label htmlFor={`mindme-${billing.patient.id}`} className="text-xs text-muted-foreground cursor-pointer select-none">
