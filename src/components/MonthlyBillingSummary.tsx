@@ -102,6 +102,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debtExpanded, setDebtExpanded] = useState(false);
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
