@@ -543,14 +543,27 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               };
               return (
                 <div key={billing.patient.id}>
-                  {patientPriorDebt > 0 && (
-                    <div className="text-xs text-destructive font-medium mb-1 pr-2">
-                      חוב מחודשים קודמים: ₪{patientPriorDebt}
-                      <span className="text-muted-foreground font-normal mr-2">
-                        ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
-                      </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    {patientPriorDebt > 0 && (
+                      <div className="text-xs text-destructive font-medium pr-2">
+                        חוב מחודשים קודמים: ₪{patientPriorDebt}
+                        <span className="text-muted-foreground font-normal mr-2">
+                          ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 mr-auto" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        id={`mindme-${billing.patient.id}`}
+                        checked={(billing.patient as any).mindme === true}
+                        onCheckedChange={() => toggleMindMe(billing.patient.id, (billing.patient as any).mindme)}
+                        className="h-4 w-4"
+                      />
+                      <label htmlFor={`mindme-${billing.patient.id}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        MindMe
+                      </label>
                     </div>
-                  )}
+                  </div>
                   <PatientBillingCard
                     billing={billing}
                     payment={payments.find((p) => p.patient_id === billing.patient.id)}
