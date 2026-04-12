@@ -175,7 +175,25 @@ export default function MindMeExport() {
       );
 
       const fileName = `mindme_commission_${sortedMonths[0]}_${sortedMonths[sortedMonths.length - 1]}.pdf`;
-      doc.save(fileName);
+      
+      // Try to use File System Access API to let user choose save location
+      const pdfBlob = doc.output("blob");
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(pdfBlob);
+          await writable.close();
+        } catch (e: any) {
+          if (e.name !== "AbortError") doc.save(fileName);
+          else return;
+        }
+      } else {
+        doc.save(fileName);
+      }
       toast({ title: "הקובץ הורד בהצלחה" });
       setOpen(false);
     } catch (error: any) {
