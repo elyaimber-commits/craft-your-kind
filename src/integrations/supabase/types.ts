@@ -139,6 +139,7 @@ export type Database = {
           created_at: string
           green_invoice_customer_id: string | null
           id: string
+          mindme: boolean
           name: string
           parent_patient_id: string | null
           phone: string
@@ -154,6 +155,7 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
+          mindme?: boolean
           name: string
           parent_patient_id?: string | null
           phone: string
@@ -169,6 +171,7 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
+          mindme?: boolean
           name?: string
           parent_patient_id?: string | null
           phone?: string

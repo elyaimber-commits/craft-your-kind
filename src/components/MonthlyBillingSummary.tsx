@@ -4,7 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, ChevronRight, ChevronLeft, Search } from "lucide-react";
+import { Calendar, ChevronRight, ChevronLeft, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
@@ -17,6 +19,7 @@ interface Patient {
   session_price: number;
   billing_type?: string;
   parent_patient_id?: string | null;
+  mindme?: boolean;
 }
 
 interface CalendarEvent {
@@ -100,6 +103,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debtExpanded, setDebtExpanded] = useState(false);
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -396,12 +400,25 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
   };
 
+  // MindMe toggle
+  const toggleMindMe = async (patientId: string, currentValue: boolean) => {
+    await supabase.from("patients").update({ mindme: !currentValue }).eq("id", patientId);
+    queryClient.invalidateQueries({ queryKey: ["patients"] });
+  };
+
   // Filter billing data by search query
   const filteredBillingData = searchQuery.trim()
     ? billingData.filter(b => b.patient.name.includes(searchQuery.trim()))
     : billingData;
 
-  if (calendarData?.error === "not_connected") return null;
+  // MindMe commission calculations
+  const mindMePatients = filteredBillingData.filter(b => b.patient.mindme === true);
+  const mindMeCommissions = mindMePatients.map(b => ({
+    name: b.patient.name,
+    total: b.total,
+    commission: Math.round(b.total * 0.3),
+  }));
+  const totalMindMeCommission = mindMeCommissions.reduce((sum, c) => sum + c.commission, 0);
 
   if (isLoading) {
     return (
@@ -464,7 +481,36 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             <div className="text-sm font-normal text-muted-foreground space-y-0.5">
               <div>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</div>
               {allPriorDebt > 0 && (
-                <div className="text-destructive font-medium">חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}</div>
+                <Collapsible open={debtExpanded} onOpenChange={setDebtExpanded}>
+                  <CollapsibleTrigger className="text-destructive font-medium flex items-center gap-1 hover:underline cursor-pointer">
+                    חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}
+                    {debtExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 bg-destructive/5 rounded-lg p-3 space-y-1">
+                    {Array.from(priorDebtByPatient.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([patientId, debt]) => {
+                        const patient = patients.find(p => p.id === patientId);
+                        const details = priorDebtDetailByPatient.get(patientId) || [];
+                        const formatML = (m: string) => {
+                          const [y, mo] = m.split("-");
+                          const d = new Date(parseInt(y), parseInt(mo) - 1);
+                          return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+                        };
+                        return (
+                          <div key={patientId} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
+                            <span className="font-medium">{patient?.name || "לא ידוע"}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">
+                                {details.map(d => `${formatML(d.month)}: ₪${d.debt}`).join(" · ")}
+                              </span>
+                              <span className="font-bold text-destructive">₪{debt}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </div>
           )}
@@ -498,14 +544,27 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               };
               return (
                 <div key={billing.patient.id}>
-                  {patientPriorDebt > 0 && (
-                    <div className="text-xs text-destructive font-medium mb-1 pr-2">
-                      חוב מחודשים קודמים: ₪{patientPriorDebt}
-                      <span className="text-muted-foreground font-normal mr-2">
-                        ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
-                      </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    {patientPriorDebt > 0 && (
+                      <div className="text-xs text-destructive font-medium pr-2">
+                        חוב מחודשים קודמים: ₪{patientPriorDebt}
+                        <span className="text-muted-foreground font-normal mr-2">
+                          ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 mr-auto" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        id={`mindme-${billing.patient.id}`}
+                       checked={billing.patient.mindme === true}
+                       onCheckedChange={() => toggleMindMe(billing.patient.id, !!billing.patient.mindme)}
+                        className="h-4 w-4"
+                      />
+                      <label htmlFor={`mindme-${billing.patient.id}`} className="text-xs text-muted-foreground cursor-pointer select-none">
+                        MindMe
+                      </label>
                     </div>
-                  )}
+                  </div>
                   <PatientBillingCard
                     billing={billing}
                     payment={payments.find((p) => p.patient_id === billing.patient.id)}
@@ -523,6 +582,38 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 </div>
               );
             })}
+
+            {/* MindMe Commission Summary */}
+            {mindMeCommissions.length > 0 && (
+              <div className="pt-3 border-t">
+                <h3 className="text-sm font-semibold mb-2">עמלת MindMe (30%)</h3>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-right py-2 px-3 font-medium">מטופל</th>
+                        <th className="text-left py-2 px-3 font-medium">ברוטו</th>
+                        <th className="text-left py-2 px-3 font-medium">עמלה (30%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mindMeCommissions.map((c) => (
+                        <tr key={c.name} className="border-t border-border/50">
+                          <td className="py-2 px-3">{c.name}</td>
+                          <td className="py-2 px-3 font-mono text-left">₪{c.total}</td>
+                          <td className="py-2 px-3 font-mono text-left font-medium">₪{c.commission}</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t bg-muted/30 font-bold">
+                        <td className="py-2 px-3">סה״כ</td>
+                        <td className="py-2 px-3 font-mono text-left">₪{mindMePatients.reduce((s, b) => s + b.total, 0)}</td>
+                        <td className="py-2 px-3 font-mono text-left text-primary">₪{totalMindMeCommission}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {filteredUnmatched.length > 0 && (
               <div className="space-y-2 pt-2 border-t">

@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN mindme boolean NOT NULL DEFAULT false;
