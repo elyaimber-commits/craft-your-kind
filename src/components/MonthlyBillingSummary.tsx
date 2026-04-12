@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
 import IgnoredEventsManager from "@/components/IgnoredEventsManager";
+import MindMeExport from "@/components/MindMeExport";
 
 interface Patient {
   id: string;
@@ -586,7 +587,10 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             {/* MindMe Commission Summary */}
             {mindMeCommissions.length > 0 && (
               <div className="pt-3 border-t">
-                <h3 className="text-sm font-semibold mb-2">עמלת MindMe (30%)</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">עמלת MindMe (30%)</h3>
+                  <MindMeExport />
+                </div>
                 <div className="rounded-lg border overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
