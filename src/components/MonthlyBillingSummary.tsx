@@ -582,6 +582,38 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               );
             })}
 
+            {/* MindMe Commission Summary */}
+            {mindMeCommissions.length > 0 && (
+              <div className="pt-3 border-t">
+                <h3 className="text-sm font-semibold mb-2">עמלת MindMe (30%)</h3>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-right py-2 px-3 font-medium">מטופל</th>
+                        <th className="text-left py-2 px-3 font-medium">ברוטו</th>
+                        <th className="text-left py-2 px-3 font-medium">עמלה (30%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mindMeCommissions.map((c) => (
+                        <tr key={c.name} className="border-t border-border/50">
+                          <td className="py-2 px-3">{c.name}</td>
+                          <td className="py-2 px-3 font-mono text-left">₪{c.total}</td>
+                          <td className="py-2 px-3 font-mono text-left font-medium">₪{c.commission}</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t bg-muted/30 font-bold">
+                        <td className="py-2 px-3">סה״כ</td>
+                        <td className="py-2 px-3 font-mono text-left">₪{mindMePatients.reduce((s, b) => s + b.total, 0)}</td>
+                        <td className="py-2 px-3 font-mono text-left text-primary">₪{totalMindMeCommission}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {filteredUnmatched.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 <h3 className="text-sm font-medium text-muted-foreground">
