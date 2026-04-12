@@ -6,8 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FileDown, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 const MONTH_NAMES_HE = [
   "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
@@ -29,6 +27,74 @@ function getLast12Months(): string[] {
   return months;
 }
 
+function buildPrintHTML(
+  rows: { name: string; month: string; gross: number; commission: number }[],
+  sortedMonths: string[]
+) {
+  const totalGross = rows.reduce((s, r) => s + r.gross, 0);
+  const totalCommission = rows.reduce((s, r) => s + r.commission, 0);
+
+  const tableRows = rows
+    .map(
+      (r) => `<tr>
+        <td>${r.name}</td>
+        <td>${r.month}</td>
+        <td>${r.gross.toLocaleString()} ₪</td>
+        <td>${r.commission.toLocaleString()} ₪</td>
+      </tr>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>דוח עמלות MindMe</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; direction: rtl; padding: 40px; color: #1a1a1a; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    .subtitle { font-size: 13px; color: #555; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th { background: #3b82f6; color: #fff; padding: 10px 12px; text-align: center; font-size: 13px; }
+    th:first-child { text-align: right; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 13px; }
+    td:first-child { text-align: right; }
+    tr:last-child td { font-weight: bold; background: #f3f4f6; border-top: 2px solid #d1d5db; }
+    .note { font-size: 11px; color: #888; margin-top: 8px; }
+    @media print {
+      body { padding: 20px; }
+      @page { size: A4 portrait; margin: 15mm; }
+    }
+  </style>
+</head>
+<body>
+  <h1>דוח עמלות MindMe</h1>
+  <p class="subtitle">חודשים: ${sortedMonths.map(formatMonthLabel).join(", ")}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>מטופל</th>
+        <th>חודש</th>
+        <th>ברוטו</th>
+        <th>עמלה (30%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+      <tr>
+        <td>סה״כ</td>
+        <td></td>
+        <td>${totalGross.toLocaleString()} ₪</td>
+        <td>${totalCommission.toLocaleString()} ₪</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">* כל הסכומים בשקלים חדשים (₪)</p>
+</body>
+</html>`;
+}
+
 export default function MindMeExport() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -47,7 +113,6 @@ export default function MindMeExport() {
     if (!user || selectedMonths.length === 0) return;
     setGenerating(true);
     try {
-      // Fetch MindMe patients
       const { data: mindmePatients } = await supabase
         .from("patients")
         .select("id, name")
@@ -61,14 +126,12 @@ export default function MindMeExport() {
       const patientIds = mindmePatients.map((p) => p.id);
       const sortedMonths = [...selectedMonths].sort();
 
-      // Fetch payments for those patients and months
       const { data: payments } = await supabase
         .from("payments")
         .select("patient_id, month, total_billed, amount")
         .in("patient_id", patientIds)
         .in("month", sortedMonths);
 
-      // Build data per patient per month
       const rows: { name: string; month: string; gross: number; commission: number }[] = [];
 
       for (const month of sortedMonths) {
@@ -93,108 +156,20 @@ export default function MindMeExport() {
         return;
       }
 
-      // Generate PDF (RTL Hebrew)
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-      // Load a font that supports Hebrew - use built-in and handle RTL manually
-      // jsPDF doesn't natively support Hebrew well, so we'll use a workaround
-      // by reversing Hebrew strings for display
-      const reverseHebrew = (text: string) => {
-        // Split by numbers/symbols and reverse Hebrew parts
-        return text.split("").reverse().join("");
+      // Open print dialog with styled HTML
+      const html = buildPrintHTML(rows, sortedMonths);
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        toast({ title: "חלון הדפסה נחסם", description: "אנא אפשר חלונות קופצים עבור אתר זה", variant: "destructive" });
+        return;
+      }
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
       };
 
-      const title = reverseHebrew("דוח עמלות MindMe");
-      const monthsLabel = reverseHebrew(`חודשים: ${sortedMonths.map(formatMonthLabel).join(", ")}`);
-
-      doc.setFontSize(18);
-      doc.text(title, doc.internal.pageSize.width - 14, 20, { align: "right" });
-
-      doc.setFontSize(11);
-      doc.text(monthsLabel, doc.internal.pageSize.width - 14, 30, { align: "right" });
-
-      // Table
-      const tableData = rows.map((r) => [
-        `${r.commission}`,
-        `${r.gross}`,
-        reverseHebrew(r.month),
-        reverseHebrew(r.name),
-      ]);
-
-      const totalGross = rows.reduce((s, r) => s + r.gross, 0);
-      const totalCommission = rows.reduce((s, r) => s + r.commission, 0);
-
-      tableData.push([
-        `${totalCommission}`,
-        `${totalGross}`,
-        "",
-        reverseHebrew("סה״כ"),
-      ]);
-
-      autoTable(doc, {
-        startY: 38,
-        head: [[
-          reverseHebrew("עמלה (30%)"),
-          reverseHebrew("ברוטו"),
-          reverseHebrew("חודש"),
-          reverseHebrew("מטופל"),
-        ]],
-        body: tableData,
-        styles: {
-          halign: "center",
-          fontSize: 11,
-        },
-        headStyles: {
-          fillColor: [59, 130, 246],
-          halign: "center",
-          fontSize: 11,
-        },
-        columnStyles: {
-          0: { halign: "center" },
-          1: { halign: "center" },
-          2: { halign: "center" },
-          3: { halign: "right" },
-        },
-        didParseCell: (data) => {
-          // Bold last row (totals)
-          if (data.row.index === tableData.length - 1) {
-            data.cell.styles.fontStyle = "bold";
-            data.cell.styles.fillColor = [240, 240, 240];
-          }
-        },
-      });
-
-      // Add currency symbol note
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      doc.setFontSize(9);
-      doc.text(
-        reverseHebrew("* כל הסכומים בשקלים חדשים (₪)"),
-        doc.internal.pageSize.width - 14,
-        finalY,
-        { align: "right" }
-      );
-
-      const fileName = `mindme_commission_${sortedMonths[0]}_${sortedMonths[sortedMonths.length - 1]}.pdf`;
-      
-      // Try to use File System Access API to let user choose save location
-      const pdfBlob = doc.output("blob");
-      if ("showSaveFilePicker" in window) {
-        try {
-          const handle = await (window as any).showSaveFilePicker({
-            suggestedName: fileName,
-            types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(pdfBlob);
-          await writable.close();
-        } catch (e: any) {
-          if (e.name !== "AbortError") doc.save(fileName);
-          else return;
-        }
-      } else {
-        doc.save(fileName);
-      }
-      toast({ title: "הקובץ הורד בהצלחה" });
+      toast({ title: "חלון ההדפסה נפתח - בחר 'שמור כ-PDF'" });
       setOpen(false);
     } catch (error: any) {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
