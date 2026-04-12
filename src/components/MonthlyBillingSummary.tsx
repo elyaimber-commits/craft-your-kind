@@ -399,12 +399,25 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
   };
 
+  // MindMe toggle
+  const toggleMindMe = async (patientId: string, currentValue: boolean) => {
+    await supabase.from("patients").update({ mindme: !currentValue }).eq("id", patientId);
+    queryClient.invalidateQueries({ queryKey: ["patients"] });
+  };
+
   // Filter billing data by search query
   const filteredBillingData = searchQuery.trim()
     ? billingData.filter(b => b.patient.name.includes(searchQuery.trim()))
     : billingData;
 
-  if (calendarData?.error === "not_connected") return null;
+  // MindMe commission calculations
+  const mindMePatients = filteredBillingData.filter(b => (b.patient as any).mindme === true);
+  const mindMeCommissions = mindMePatients.map(b => ({
+    name: b.patient.name,
+    total: b.total,
+    commission: Math.round(b.total * 0.3),
+  }));
+  const totalMindMeCommission = mindMeCommissions.reduce((sum, c) => sum + c.commission, 0);
 
   if (isLoading) {
     return (
