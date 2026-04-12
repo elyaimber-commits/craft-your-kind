@@ -412,7 +412,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     : billingData;
 
   // MindMe commission calculations
-  const mindMePatients = filteredBillingData.filter(b => (b.patient as any).mindme === true);
+  const mindMePatients = filteredBillingData.filter(b => b.patient.mindme === true);
   const mindMeCommissions = mindMePatients.map(b => ({
     name: b.patient.name,
     total: b.total,
