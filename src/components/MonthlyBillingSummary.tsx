@@ -19,6 +19,7 @@ interface Patient {
   session_price: number;
   billing_type?: string;
   parent_patient_id?: string | null;
+  mindme?: boolean;
 }
 
 interface CalendarEvent {
