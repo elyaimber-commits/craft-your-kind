@@ -467,7 +467,36 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             <div className="text-sm font-normal text-muted-foreground space-y-0.5">
               <div>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</div>
               {allPriorDebt > 0 && (
-                <div className="text-destructive font-medium">חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}</div>
+                <Collapsible open={debtExpanded} onOpenChange={setDebtExpanded}>
+                  <CollapsibleTrigger className="text-destructive font-medium flex items-center gap-1 hover:underline cursor-pointer">
+                    חוב מצטבר מחודשים קודמים: ₪{allPriorDebt} · סה״כ נותר: ₪{totalRemaining}
+                    {debtExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 bg-destructive/5 rounded-lg p-3 space-y-1">
+                    {Array.from(priorDebtByPatient.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([patientId, debt]) => {
+                        const patient = patients.find(p => p.id === patientId);
+                        const details = priorDebtDetailByPatient.get(patientId) || [];
+                        const formatML = (m: string) => {
+                          const [y, mo] = m.split("-");
+                          const d = new Date(parseInt(y), parseInt(mo) - 1);
+                          return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+                        };
+                        return (
+                          <div key={patientId} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
+                            <span className="font-medium">{patient?.name || "לא ידוע"}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">
+                                {details.map(d => `${formatML(d.month)}: ₪${d.debt}`).join(" · ")}
+                              </span>
+                              <span className="font-bold text-destructive">₪{debt}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </div>
           )}
