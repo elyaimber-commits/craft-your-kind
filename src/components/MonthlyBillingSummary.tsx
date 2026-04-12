@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from "react";
 import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
 import IgnoredEventsManager from "@/components/IgnoredEventsManager";
+import MindMeExport from "@/components/MindMeExport";
 
 interface Patient {
   id: string;
