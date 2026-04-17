@@ -539,17 +539,22 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     .map(([patientId, debt]) => {
                       const patient = patients.find(p => p.id === patientId);
                       const details = priorDebtDetailByPatient.get(patientId) || [];
+                      const manual = manualDebtByPatient.get(patientId);
                       const formatML = (m: string) => {
                         const [y, mo] = m.split("-");
                         const d = new Date(parseInt(y), parseInt(mo) - 1);
                         return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
                       };
+                      const parts: string[] = details.map(d => `${formatML(d.month)}: ₪${d.debt}`);
+                      if (manual) {
+                        parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      }
                       return (
                         <div key={patientId} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0 gap-2">
                           <span className="font-medium">{patient?.name || "לא ידוע"}</span>
                           <div className="flex items-center gap-2 flex-wrap justify-end">
                             <span className="text-muted-foreground">
-                              {details.map(d => `${formatML(d.month)}: ₪${d.debt}`).join(" · ")}
+                              {parts.join(" · ")}
                             </span>
                             <span className="font-bold text-destructive">₪{debt}</span>
                           </div>
