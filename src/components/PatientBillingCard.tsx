@@ -484,17 +484,17 @@ const PatientBillingCard = ({
                 priorDebtDetails.reduce((s, d) => s + d.debt, 0) +
                 manualDebts.reduce((s, d) => s + Number(d.amount), 0);
               const grandTotal = billing.total + priorDebtTotal;
+              const remaining = Math.max(0, grandTotal - paidAmount);
               return (
                 <>
-                  <span className="font-bold text-lg">₪{grandTotal}</span>
-                  {priorDebtTotal > 0 && (
+                  <span className="font-bold text-lg">₪{remaining}</span>
+                  {(priorDebtTotal > 0 || somePaid) && (
                     <div className="text-xs text-muted-foreground">
-                      חודשי: ₪{billing.total} · קודם: <span className="text-destructive">₪{priorDebtTotal}</span>
-                    </div>
-                  )}
-                  {somePaid && !allPaid && (
-                    <div className="text-xs text-muted-foreground">
-                      שולם: ₪{paidAmount} · נותר חודשי: ₪{Math.max(0, billing.total - paidAmount)}
+                      סה״כ: ₪{grandTotal}
+                      {priorDebtTotal > 0 && (
+                        <> (חודשי ₪{billing.total} + <span className="text-destructive">קודם ₪{priorDebtTotal}</span>)</>
+                      )}
+                      {somePaid && <> · שולם: ₪{paidAmount}</>}
                     </div>
                   )}
                 </>
