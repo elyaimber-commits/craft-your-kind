@@ -105,6 +105,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [debtExpanded, setDebtExpanded] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial">("all");
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -304,11 +305,19 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           ...purpleSessions.map(s => s.eventId!),
         ])] as string[];
 
-        const paidAmount = billing.sessions
+        const sessionsPaidAmount = billing.sessions
           .filter(s => s.eventId && allPaidIds.includes(s.eventId))
           .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
 
-        const allPaid = allPaidIds.length === billing.sessions.length;
+        // Preserve any "extra" partial payment beyond what sessions cover
+        const previousAmount = (existingPayment as any)?.amount ?? 0;
+        const previousSessionsAmount = billing.sessions
+          .filter(s => s.eventId && existingPaidIds.has(s.eventId))
+          .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+        const extraPaid = Math.max(0, previousAmount - previousSessionsAmount);
+        const paidAmount = sessionsPaidAmount + extraPaid;
+
+        const allPaid = paidAmount >= billing.total;
 
         if (existingPayment) {
           // Update total_billed + paid info
@@ -321,7 +330,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               .update({
                 total_billed: billing.total,
                 paid: allPaid,
-                paid_at: allPaidIds.length > 0 ? new Date().toISOString() : existingPayment.paid_at,
+                paid_at: allPaidIds.length > 0 || extraPaid > 0 ? new Date().toISOString() : existingPayment.paid_at,
                 amount: paidAmount,
                 session_count: allPaidIds.length,
                 paid_event_ids: allPaidIds,
@@ -407,10 +416,34 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     queryClient.invalidateQueries({ queryKey: ["patients"] });
   };
 
-  // Filter billing data by search query
-  const filteredBillingData = searchQuery.trim()
-    ? billingData.filter(b => b.patient.name.includes(searchQuery.trim()))
+  // Compute payment status per billing entry
+  const getPatientStatus = (b: typeof billingData[number]): "paid" | "unpaid" | "partial" => {
+    const payment = payments.find((p) => p.patient_id === b.patient.id);
+    const paidIds = (payment as any)?.paid_event_ids || [];
+    const sessionsPaid = b.sessions
+      .filter((s) => s.eventId && paidIds.includes(s.eventId))
+      .reduce((sum, s) => sum + (s.sessionPrice ?? b.patient.session_price), 0);
+    const totalPaid = Math.max(sessionsPaid, payment?.amount ?? 0);
+    if (totalPaid <= 0) return "unpaid";
+    if (totalPaid >= b.total) return "paid";
+    return "partial";
+  };
+
+  // Filter billing data by search query and status
+  const filteredBillingData = billingData
+    .filter((b) => (searchQuery.trim() ? b.patient.name.includes(searchQuery.trim()) : true))
+    .filter((b) => (statusFilter === "all" ? true : getPatientStatus(b) === statusFilter));
+
+  // Counts per status (based on search-filtered data, before status filter)
+  const searchOnlyData = searchQuery.trim()
+    ? billingData.filter((b) => b.patient.name.includes(searchQuery.trim()))
     : billingData;
+  const statusCounts = {
+    all: searchOnlyData.length,
+    paid: searchOnlyData.filter((b) => getPatientStatus(b) === "paid").length,
+    unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
+    partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
+  };
 
   // MindMe commission calculations
   const mindMePatients = filteredBillingData.filter(b => b.patient.mindme === true);
@@ -519,14 +552,35 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       </CardHeader>
       <CardContent>
         {billingData.length > 0 && (
-          <div className="relative mb-4">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="חיפוש מטופל..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pr-9"
-            />
+          <div className="space-y-3 mb-4">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חיפוש מטופל..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pr-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { key: "all", label: "הכל" },
+                { key: "unpaid", label: "לא שולם" },
+                { key: "partial", label: "חלקי" },
+                { key: "paid", label: "שולם" },
+              ] as const).map((opt) => (
+                <Button
+                  key={opt.key}
+                  size="sm"
+                  variant={statusFilter === opt.key ? "default" : "outline"}
+                  onClick={() => setStatusFilter(opt.key)}
+                  className="h-8"
+                >
+                  {opt.label}
+                  <span className="mr-1.5 text-xs opacity-70">({statusCounts[opt.key]})</span>
+                </Button>
+              ))}
+            </div>
           </div>
         )}
         {filteredBillingData.length === 0 && filteredUnmatched.length === 0 ? (

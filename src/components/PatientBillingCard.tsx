@@ -89,11 +89,74 @@ const PatientBillingCard = ({
 
   const paidEventIds = new Set(payment?.paid_event_ids || []);
   const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
-  const allPaid = paidCount === billing.sessions.length && billing.sessions.length > 0;
-  const somePaid = paidCount > 0;
-  const paidAmount = billing.sessions
+  const sessionsPaidAmount = billing.sessions
     .filter(s => s.eventId && paidEventIds.has(s.eventId))
     .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+  // Extra partial payment = amount stored beyond what sessions cover
+  const extraPaid = Math.max(0, (payment?.amount ?? 0) - sessionsPaidAmount);
+  const paidAmount = sessionsPaidAmount + extraPaid;
+  const allPaid = paidAmount >= billing.total && billing.sessions.length > 0;
+  const somePaid = paidAmount > 0;
+  const [extraInput, setExtraInput] = useState("");
+  const [savingExtra, setSavingExtra] = useState(false);
+
+  const saveExtraPayment = async (addAmount: number) => {
+    if (!user || addAmount <= 0) return;
+    setSavingExtra(true);
+    try {
+      const newAmount = (payment?.amount ?? 0) + addAmount;
+      const newAllPaid = newAmount >= billing.total;
+      if (payment) {
+        await supabase
+          .from("payments")
+          .update({
+            amount: newAmount,
+            paid: newAllPaid,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", payment.id);
+      } else {
+        await supabase.from("payments").insert({
+          therapist_id: user.id,
+          patient_id: billing.patient.id,
+          month: currentMonth,
+          amount: newAmount,
+          total_billed: billing.total,
+          session_count: 0,
+          paid: newAllPaid,
+          paid_at: new Date().toISOString(),
+          paid_event_ids: [],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      setExtraInput("");
+      toast({ title: `נוסף תשלום של ₪${addAmount}` });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingExtra(false);
+    }
+  };
+
+  const clearExtraPayment = async () => {
+    if (!payment || extraPaid <= 0) return;
+    setSavingExtra(true);
+    try {
+      await supabase
+        .from("payments")
+        .update({
+          amount: sessionsPaidAmount,
+          paid: sessionsPaidAmount >= billing.total && billing.sessions.length > 0,
+        })
+        .eq("id", payment.id);
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      toast({ title: "השלמת התשלום בוטלה" });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingExtra(false);
+    }
+  };
 
   // Toggle a single session's paid status
   const toggleSessionPaid = async (session: Session) => {
@@ -354,7 +417,7 @@ const PatientBillingCard = ({
             )}
             {somePaid && !allPaid && (
               <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded-full">
-                שולם חלקית ({paidCount}/{billing.sessions.length})
+                שולם חלקית (₪{paidAmount}/{billing.total})
               </span>
             )}
             <span className="text-sm text-muted-foreground">
@@ -365,7 +428,7 @@ const PatientBillingCard = ({
             <span className="font-bold text-lg">₪{billing.total}</span>
             {somePaid && !allPaid && (
               <div className="text-xs text-muted-foreground">
-                שולם: ₪{paidAmount} · נותר: ₪{billing.total - paidAmount}
+                שולם: ₪{paidAmount} · נותר: ₪{Math.max(0, billing.total - paidAmount)}
               </div>
             )}
           </div>
@@ -518,6 +581,48 @@ const PatientBillingCard = ({
                 )}
                 <span>סה״כ: ₪{billing.total}</span>
               </div>
+            </div>
+
+            {/* Partial payment top-up */}
+            <div className="mt-3 pt-3 border-t border-dashed">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                השלמת תשלום (סכום חלקי שלא מתאים בדיוק לפגישות)
+              </p>
+              {extraPaid > 0 && (
+                <div className="flex items-center justify-between text-sm py-1.5 px-2 mb-2 rounded bg-green-50 dark:bg-green-950/20 border border-green-500/30">
+                  <span className="text-green-700 dark:text-green-400">
+                    ✓ נוסף תשלום ידני של ₪{extraPaid}
+                  </span>
+                  <button
+                    onClick={clearExtraPayment}
+                    disabled={savingExtra}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    בטל
+                  </button>
+                </div>
+              )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = parseFloat(extraInput);
+                  if (!isNaN(v) && v > 0) saveExtraPayment(v);
+                }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-sm text-muted-foreground">₪</span>
+                <Input
+                  type="number"
+                  placeholder="סכום נוסף"
+                  value={extraInput}
+                  onChange={(e) => setExtraInput(e.target.value)}
+                  className="h-8 flex-1 text-sm"
+                  dir="ltr"
+                />
+                <Button type="submit" size="sm" disabled={savingExtra || !extraInput}>
+                  {savingExtra ? <Loader2 className="h-3 w-3 animate-spin" /> : "הוסף"}
+                </Button>
+              </form>
             </div>
 
             {/* Prior months debt section */}
