@@ -304,11 +304,19 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           ...purpleSessions.map(s => s.eventId!),
         ])] as string[];
 
-        const paidAmount = billing.sessions
+        const sessionsPaidAmount = billing.sessions
           .filter(s => s.eventId && allPaidIds.includes(s.eventId))
           .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
 
-        const allPaid = allPaidIds.length === billing.sessions.length;
+        // Preserve any "extra" partial payment beyond what sessions cover
+        const previousAmount = (existingPayment as any)?.amount ?? 0;
+        const previousSessionsAmount = billing.sessions
+          .filter(s => s.eventId && existingPaidIds.has(s.eventId))
+          .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+        const extraPaid = Math.max(0, previousAmount - previousSessionsAmount);
+        const paidAmount = sessionsPaidAmount + extraPaid;
+
+        const allPaid = paidAmount >= billing.total;
 
         if (existingPayment) {
           // Update total_billed + paid info
@@ -321,7 +329,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               .update({
                 total_billed: billing.total,
                 paid: allPaid,
-                paid_at: allPaidIds.length > 0 ? new Date().toISOString() : existingPayment.paid_at,
+                paid_at: allPaidIds.length > 0 || extraPaid > 0 ? new Date().toISOString() : existingPayment.paid_at,
                 amount: paidAmount,
                 session_count: allPaidIds.length,
                 paid_event_ids: allPaidIds,
