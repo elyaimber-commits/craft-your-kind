@@ -21,6 +21,8 @@ interface Patient {
   billing_type?: string;
   parent_patient_id?: string | null;
   mindme?: boolean;
+  manual_debt?: number;
+  manual_debt_note?: string | null;
 }
 
 interface CalendarEvent {
@@ -486,6 +488,16 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     }
   });
 
+  // Add manual debts (one-off, manually entered debts e.g. from previous years)
+  const manualDebtByPatient = new Map<string, { amount: number; note?: string | null }>();
+  patients.forEach((p) => {
+    const md = Number(p.manual_debt || 0);
+    if (md > 0) {
+      manualDebtByPatient.set(p.id, { amount: md, note: p.manual_debt_note });
+      priorDebtByPatient.set(p.id, (priorDebtByPatient.get(p.id) || 0) + md);
+    }
+  });
+
   const totalPriorDebt = filteredBillingData.reduce((sum, b) => {
     return sum + (priorDebtByPatient.get(b.patient.id) || 0);
   }, 0);
@@ -527,17 +539,22 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     .map(([patientId, debt]) => {
                       const patient = patients.find(p => p.id === patientId);
                       const details = priorDebtDetailByPatient.get(patientId) || [];
+                      const manual = manualDebtByPatient.get(patientId);
                       const formatML = (m: string) => {
                         const [y, mo] = m.split("-");
                         const d = new Date(parseInt(y), parseInt(mo) - 1);
                         return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
                       };
+                      const parts: string[] = details.map(d => `${formatML(d.month)}: ₪${d.debt}`);
+                      if (manual) {
+                        parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      }
                       return (
                         <div key={patientId} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0 gap-2">
                           <span className="font-medium">{patient?.name || "לא ידוע"}</span>
                           <div className="flex items-center gap-2 flex-wrap justify-end">
                             <span className="text-muted-foreground">
-                              {details.map(d => `${formatML(d.month)}: ₪${d.debt}`).join(" · ")}
+                              {parts.join(" · ")}
                             </span>
                             <span className="font-bold text-destructive">₪{debt}</span>
                           </div>
@@ -600,14 +617,19 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               return (
                 <div key={billing.patient.id}>
                   <div className="flex items-center gap-2 mb-1">
-                    {patientPriorDebt > 0 && (
-                      <div className="text-xs text-destructive font-medium pr-2">
-                        חוב מחודשים קודמים: ₪{patientPriorDebt}
-                        <span className="text-muted-foreground font-normal mr-2">
-                          ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
-                        </span>
-                      </div>
-                    )}
+                    {patientPriorDebt > 0 && (() => {
+                      const manual = manualDebtByPatient.get(billing.patient.id);
+                      const parts: string[] = patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`);
+                      if (manual) parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      return (
+                        <div className="text-xs text-destructive font-medium pr-2">
+                          חוב מחודשים קודמים: ₪{patientPriorDebt}
+                          <span className="text-muted-foreground font-normal mr-2">
+                            ({parts.join(" · ")})
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-1.5 mr-auto" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         id={`mindme-${billing.patient.id}`}

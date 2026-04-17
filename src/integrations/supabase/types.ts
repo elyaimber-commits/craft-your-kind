@@ -139,6 +139,8 @@ export type Database = {
           created_at: string
           green_invoice_customer_id: string | null
           id: string
+          manual_debt: number
+          manual_debt_note: string | null
           mindme: boolean
           name: string
           parent_patient_id: string | null
@@ -155,6 +157,8 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
+          manual_debt?: number
+          manual_debt_note?: string | null
           mindme?: boolean
           name: string
           parent_patient_id?: string | null
@@ -171,6 +175,8 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
+          manual_debt?: number
+          manual_debt_note?: string | null
           mindme?: boolean
           name?: string
           parent_patient_id?: string | null

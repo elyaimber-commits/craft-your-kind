@@ -20,6 +20,8 @@ interface Patient {
   name: string;
   phone: string;
   session_price: number;
+  manual_debt?: number;
+  manual_debt_note?: string | null;
 }
 
 interface Session {
@@ -155,6 +157,37 @@ const PatientBillingCard = ({
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
     } finally {
       setSavingExtra(false);
+    }
+  };
+
+  // Manual debt (one-off, e.g. from previous years)
+  const [manualDebtInput, setManualDebtInput] = useState(String(billing.patient.manual_debt || ""));
+  const [manualNoteInput, setManualNoteInput] = useState(billing.patient.manual_debt_note || "");
+  const [savingManualDebt, setSavingManualDebt] = useState(false);
+  const [editingManualDebt, setEditingManualDebt] = useState(false);
+
+  const saveManualDebt = async () => {
+    if (!user) return;
+    const amount = parseFloat(manualDebtInput) || 0;
+    if (amount < 0) return;
+    setSavingManualDebt(true);
+    try {
+      await supabase
+        .from("patients")
+        .update({
+          manual_debt: amount,
+          manual_debt_note: amount > 0 ? (manualNoteInput.trim() || null) : null,
+        })
+        .eq("id", billing.patient.id);
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      toast({
+        title: amount > 0 ? `חוב ידני עודכן: ₪${amount}` : "החוב הידני הוסר",
+      });
+      setEditingManualDebt(false);
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingManualDebt(false);
     }
   };
 
@@ -623,6 +656,73 @@ const PatientBillingCard = ({
                   {savingExtra ? <Loader2 className="h-3 w-3 animate-spin" /> : "הוסף"}
                 </Button>
               </form>
+            </div>
+
+            {/* Manual debt (one-off, e.g. from previous years) */}
+            <div className="mt-3 pt-3 border-t border-dashed">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  חוב ידני (משנים קודמות / מחוץ למערכת)
+                </p>
+                {!editingManualDebt && (
+                  <button
+                    onClick={() => {
+                      setManualDebtInput(String(billing.patient.manual_debt || ""));
+                      setManualNoteInput(billing.patient.manual_debt_note || "");
+                      setEditingManualDebt(true);
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {billing.patient.manual_debt ? "ערוך" : "הוסף"}
+                  </button>
+                )}
+              </div>
+
+              {!editingManualDebt && billing.patient.manual_debt && billing.patient.manual_debt > 0 && (
+                <div className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-destructive/5 border border-destructive/30">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-destructive">₪{billing.patient.manual_debt}</span>
+                    {billing.patient.manual_debt_note && (
+                      <span className="text-xs text-muted-foreground">{billing.patient.manual_debt_note}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {editingManualDebt && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">₪</span>
+                    <Input
+                      type="number"
+                      placeholder="סכום החוב"
+                      value={manualDebtInput}
+                      onChange={(e) => setManualDebtInput(e.target.value)}
+                      className="h-8 flex-1 text-sm"
+                      dir="ltr"
+                    />
+                  </div>
+                  <Input
+                    placeholder="הערה (לדוג' חוב משנת 2024)"
+                    value={manualNoteInput}
+                    onChange={(e) => setManualNoteInput(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingManualDebt(false)}
+                      disabled={savingManualDebt}
+                    >
+                      בטל
+                    </Button>
+                    <Button size="sm" onClick={saveManualDebt} disabled={savingManualDebt}>
+                      {savingManualDebt ? <Loader2 className="h-3 w-3 animate-spin" /> : "שמור"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Prior months debt section */}
