@@ -583,6 +583,48 @@ const PatientBillingCard = ({
               </div>
             </div>
 
+            {/* Partial payment top-up */}
+            <div className="mt-3 pt-3 border-t border-dashed">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                השלמת תשלום (סכום חלקי שלא מתאים בדיוק לפגישות)
+              </p>
+              {extraPaid > 0 && (
+                <div className="flex items-center justify-between text-sm py-1.5 px-2 mb-2 rounded bg-green-50 dark:bg-green-950/20 border border-green-500/30">
+                  <span className="text-green-700 dark:text-green-400">
+                    ✓ נוסף תשלום ידני של ₪{extraPaid}
+                  </span>
+                  <button
+                    onClick={clearExtraPayment}
+                    disabled={savingExtra}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    בטל
+                  </button>
+                </div>
+              )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = parseFloat(extraInput);
+                  if (!isNaN(v) && v > 0) saveExtraPayment(v);
+                }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-sm text-muted-foreground">₪</span>
+                <Input
+                  type="number"
+                  placeholder="סכום נוסף"
+                  value={extraInput}
+                  onChange={(e) => setExtraInput(e.target.value)}
+                  className="h-8 flex-1 text-sm"
+                  dir="ltr"
+                />
+                <Button type="submit" size="sm" disabled={savingExtra || !extraInput}>
+                  {savingExtra ? <Loader2 className="h-3 w-3 animate-spin" /> : "הוסף"}
+                </Button>
+              </form>
+            </div>
+
             {/* Prior months debt section */}
             {priorDebtDetails.length > 0 && (
               <div className="mt-3 pt-3 border-t border-dashed">
