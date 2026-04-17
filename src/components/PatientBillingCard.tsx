@@ -774,32 +774,52 @@ const PatientBillingCard = ({
             </div>
 
             {/* Prior months debt section */}
-            {priorDebtDetails.length > 0 && (
+            {(priorDebtDetails.length > 0 || manualDebts.length > 0) && (
               <div className="mt-3 pt-3 border-t border-dashed">
-                <p className="text-xs font-medium text-destructive mb-2">חובות מחודשים קודמים:</p>
-                <div className="space-y-1">
-                  {priorDebtDetails.map((detail) => {
-                    const isToggling = togglingPriorMonth === detail.month;
-                    return (
-                      <div
-                        key={detail.month}
-                        className="flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 border-r-destructive bg-destructive/5 cursor-pointer transition-colors hover:bg-destructive/10"
-                        onClick={() => togglePriorMonthPaid(detail)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded border border-destructive/40 flex items-center justify-center">
-                            {isToggling && <Loader2 className="h-3 w-3 animate-spin" />}
+                {priorDebtDetails.length > 0 && (
+                  <>
+                    <p className="text-xs font-medium text-destructive mb-2">חובות מחודשים קודמים:</p>
+                    <div className="space-y-1">
+                      {priorDebtDetails.map((detail) => {
+                        const isToggling = togglingPriorMonth === detail.month;
+                        return (
+                          <div
+                            key={detail.month}
+                            className="flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 border-r-destructive bg-destructive/5 cursor-pointer transition-colors hover:bg-destructive/10"
+                            onClick={() => togglePriorMonthPaid(detail)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded border border-destructive/40 flex items-center justify-center">
+                                {isToggling && <Loader2 className="h-3 w-3 animate-spin" />}
+                              </div>
+                              <span>{formatMonthLabel(detail.month)}</span>
+                            </div>
+                            <span className="font-medium text-destructive">₪{detail.debt}</span>
                           </div>
-                          <span>{formatMonthLabel(detail.month)}</span>
-                        </div>
-                        <span className="font-medium text-destructive">₪{detail.debt}</span>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+                {manualDebts.length > 0 && (
+                  <div className={`space-y-1 ${priorDebtDetails.length > 0 ? "mt-2" : ""}`}>
+                    {manualDebts.map((debt) => (
+                      <div
+                        key={`manual-${debt.id}`}
+                        className="flex items-center justify-between text-sm py-1.5 px-2 rounded border-r-4 border-r-destructive bg-destructive/5"
+                      >
+                        <span>ידני{debt.note ? ` (${debt.note})` : ""}</span>
+                        <span className="font-medium text-destructive">₪{Number(debt.amount)}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 font-medium text-destructive text-sm">
                   <span>סה״כ חוב קודם</span>
-                  <span>₪{priorDebtDetails.reduce((s, d) => s + d.debt, 0)}</span>
+                  <span>
+                    ₪{priorDebtDetails.reduce((s, d) => s + d.debt, 0) +
+                      manualDebts.reduce((s, d) => s + Number(d.amount), 0)}
+                  </span>
                 </div>
               </div>
             )}
