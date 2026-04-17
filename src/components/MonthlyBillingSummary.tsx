@@ -416,10 +416,34 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     queryClient.invalidateQueries({ queryKey: ["patients"] });
   };
 
-  // Filter billing data by search query
-  const filteredBillingData = searchQuery.trim()
-    ? billingData.filter(b => b.patient.name.includes(searchQuery.trim()))
+  // Compute payment status per billing entry
+  const getPatientStatus = (b: typeof billingData[number]): "paid" | "unpaid" | "partial" => {
+    const payment = payments.find((p) => p.patient_id === b.patient.id);
+    const paidIds = (payment as any)?.paid_event_ids || [];
+    const sessionsPaid = b.sessions
+      .filter((s) => s.eventId && paidIds.includes(s.eventId))
+      .reduce((sum, s) => sum + (s.sessionPrice ?? b.patient.session_price), 0);
+    const totalPaid = Math.max(sessionsPaid, payment?.amount ?? 0);
+    if (totalPaid <= 0) return "unpaid";
+    if (totalPaid >= b.total) return "paid";
+    return "partial";
+  };
+
+  // Filter billing data by search query and status
+  const filteredBillingData = billingData
+    .filter((b) => (searchQuery.trim() ? b.patient.name.includes(searchQuery.trim()) : true))
+    .filter((b) => (statusFilter === "all" ? true : getPatientStatus(b) === statusFilter));
+
+  // Counts per status (based on search-filtered data, before status filter)
+  const searchOnlyData = searchQuery.trim()
+    ? billingData.filter((b) => b.patient.name.includes(searchQuery.trim()))
     : billingData;
+  const statusCounts = {
+    all: searchOnlyData.length,
+    paid: searchOnlyData.filter((b) => getPatientStatus(b) === "paid").length,
+    unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
+    partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
+  };
 
   // MindMe commission calculations
   const mindMePatients = filteredBillingData.filter(b => b.patient.mindme === true);
