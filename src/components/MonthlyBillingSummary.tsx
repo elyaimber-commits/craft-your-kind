@@ -21,6 +21,8 @@ interface Patient {
   billing_type?: string;
   parent_patient_id?: string | null;
   mindme?: boolean;
+  manual_debt?: number;
+  manual_debt_note?: string | null;
 }
 
 interface CalendarEvent {
