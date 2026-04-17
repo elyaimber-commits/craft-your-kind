@@ -199,6 +199,18 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
+  const { data: manualDebts = [] } = useQuery({
+    queryKey: ["manual-debts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manual_debts")
+        .select("id, patient_id, amount, note");
+      if (error) throw error;
+      return data as ManualDebt[];
+    },
+    enabled: !!user,
+  });
+
   // Build override map: event_id -> custom_price
   const overrideMap = new Map<string, number>();
   sessionOverrides.forEach((o: any) => {
