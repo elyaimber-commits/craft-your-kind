@@ -417,7 +417,7 @@ const PatientBillingCard = ({
             )}
             {somePaid && !allPaid && (
               <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded-full">
-                שולם חלקית ({paidCount}/{billing.sessions.length})
+                שולם חלקית (₪{paidAmount}/{billing.total})
               </span>
             )}
             <span className="text-sm text-muted-foreground">
@@ -428,7 +428,7 @@ const PatientBillingCard = ({
             <span className="font-bold text-lg">₪{billing.total}</span>
             {somePaid && !allPaid && (
               <div className="text-xs text-muted-foreground">
-                שולם: ₪{paidAmount} · נותר: ₪{billing.total - paidAmount}
+                שולם: ₪{paidAmount} · נותר: ₪{Math.max(0, billing.total - paidAmount)}
               </div>
             )}
           </div>
