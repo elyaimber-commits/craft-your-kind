@@ -13,6 +13,8 @@ import {
   Loader2,
   RefreshCw,
   Pencil,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 interface Patient {
