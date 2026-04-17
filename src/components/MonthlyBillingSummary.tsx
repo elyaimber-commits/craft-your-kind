@@ -21,8 +21,13 @@ interface Patient {
   billing_type?: string;
   parent_patient_id?: string | null;
   mindme?: boolean;
-  manual_debt?: number;
-  manual_debt_note?: string | null;
+}
+
+interface ManualDebt {
+  id: string;
+  patient_id: string;
+  amount: number;
+  note: string | null;
 }
 
 interface CalendarEvent {
@@ -190,6 +195,18 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         .select("*");
       if (error) throw error;
       return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: manualDebts = [] } = useQuery({
+    queryKey: ["manual-debts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manual_debts")
+        .select("id, patient_id, amount, note");
+      if (error) throw error;
+      return data as ManualDebt[];
     },
     enabled: !!user,
   });
@@ -489,12 +506,17 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   });
 
   // Add manual debts (one-off, manually entered debts e.g. from previous years)
-  const manualDebtByPatient = new Map<string, { amount: number; note?: string | null }>();
-  patients.forEach((p) => {
-    const md = Number(p.manual_debt || 0);
-    if (md > 0) {
-      manualDebtByPatient.set(p.id, { amount: md, note: p.manual_debt_note });
-      priorDebtByPatient.set(p.id, (priorDebtByPatient.get(p.id) || 0) + md);
+  // A patient can have multiple manual debt records.
+  const manualDebtsByPatient = new Map<string, ManualDebt[]>();
+  manualDebts.forEach((d) => {
+    const list = manualDebtsByPatient.get(d.patient_id) || [];
+    list.push(d);
+    manualDebtsByPatient.set(d.patient_id, list);
+  });
+  manualDebtsByPatient.forEach((list, patientId) => {
+    const total = list.reduce((s, d) => s + Number(d.amount || 0), 0);
+    if (total > 0) {
+      priorDebtByPatient.set(patientId, (priorDebtByPatient.get(patientId) || 0) + total);
     }
   });
 
@@ -539,16 +561,16 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     .map(([patientId, debt]) => {
                       const patient = patients.find(p => p.id === patientId);
                       const details = priorDebtDetailByPatient.get(patientId) || [];
-                      const manual = manualDebtByPatient.get(patientId);
+                      const manuals = manualDebtsByPatient.get(patientId) || [];
                       const formatML = (m: string) => {
                         const [y, mo] = m.split("-");
                         const d = new Date(parseInt(y), parseInt(mo) - 1);
                         return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
                       };
                       const parts: string[] = details.map(d => `${formatML(d.month)}: ₪${d.debt}`);
-                      if (manual) {
-                        parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
-                      }
+                      manuals.forEach(m => {
+                        parts.push(`ידני${m.note ? ` (${m.note})` : ""}: ₪${m.amount}`);
+                      });
                       return (
                         <div key={patientId} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0 gap-2">
                           <span className="font-medium">{patient?.name || "לא ידוע"}</span>
@@ -618,9 +640,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 <div key={billing.patient.id}>
                   <div className="flex items-center gap-2 mb-1">
                     {patientPriorDebt > 0 && (() => {
-                      const manual = manualDebtByPatient.get(billing.patient.id);
+                      const manuals = manualDebtsByPatient.get(billing.patient.id) || [];
                       const parts: string[] = patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`);
-                      if (manual) parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      manuals.forEach(m => parts.push(`ידני${m.note ? ` (${m.note})` : ""}: ₪${m.amount}`));
                       return (
                         <div className="text-xs text-destructive font-medium pr-2">
                           חוב מחודשים קודמים: ₪{patientPriorDebt}
@@ -655,6 +677,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     generateWhatsAppMessage={generateWhatsAppMessage}
                     calendarEventName={calendarNameByPatient.get(billing.patient.id)}
                     priorDebtDetails={patientDebtDetails}
+                    manualDebts={manualDebtsByPatient.get(billing.patient.id) || []}
                   />
                 </div>
               );

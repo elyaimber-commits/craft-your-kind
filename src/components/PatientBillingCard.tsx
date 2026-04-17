@@ -13,6 +13,8 @@ import {
   Loader2,
   RefreshCw,
   Pencil,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 interface Patient {
@@ -20,8 +22,12 @@ interface Patient {
   name: string;
   phone: string;
   session_price: number;
-  manual_debt?: number;
-  manual_debt_note?: string | null;
+}
+
+interface ManualDebt {
+  id: string;
+  amount: number;
+  note: string | null;
 }
 
 interface Session {
@@ -68,6 +74,7 @@ interface PatientBillingCardProps {
   generateWhatsAppMessage: (billing: PatientBilling) => string;
   calendarEventName?: string;
   priorDebtDetails?: PriorDebtDetail[];
+  manualDebts?: ManualDebt[];
 }
 
 const PatientBillingCard = ({
@@ -79,6 +86,7 @@ const PatientBillingCard = ({
   generateWhatsAppMessage,
   calendarEventName,
   priorDebtDetails = [],
+  manualDebts = [],
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -160,34 +168,47 @@ const PatientBillingCard = ({
     }
   };
 
-  // Manual debt (one-off, e.g. from previous years)
-  const [manualDebtInput, setManualDebtInput] = useState(String(billing.patient.manual_debt || ""));
-  const [manualNoteInput, setManualNoteInput] = useState(billing.patient.manual_debt_note || "");
-  const [savingManualDebt, setSavingManualDebt] = useState(false);
-  const [editingManualDebt, setEditingManualDebt] = useState(false);
+  // Manual debts: list of one-off debts (e.g. from previous years)
+  const [newDebtAmount, setNewDebtAmount] = useState("");
+  const [newDebtNote, setNewDebtNote] = useState("");
+  const [savingNewDebt, setSavingNewDebt] = useState(false);
+  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [deletingDebtId, setDeletingDebtId] = useState<string | null>(null);
 
-  const saveManualDebt = async () => {
+  const addManualDebt = async () => {
     if (!user) return;
-    const amount = parseFloat(manualDebtInput) || 0;
-    if (amount < 0) return;
-    setSavingManualDebt(true);
+    const amount = parseFloat(newDebtAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    setSavingNewDebt(true);
     try {
-      await supabase
-        .from("patients")
-        .update({
-          manual_debt: amount,
-          manual_debt_note: amount > 0 ? (manualNoteInput.trim() || null) : null,
-        })
-        .eq("id", billing.patient.id);
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
-      toast({
-        title: amount > 0 ? `חוב ידני עודכן: ₪${amount}` : "החוב הידני הוסר",
+      await supabase.from("manual_debts").insert({
+        therapist_id: user.id,
+        patient_id: billing.patient.id,
+        amount,
+        note: newDebtNote.trim() || null,
       });
-      setEditingManualDebt(false);
+      queryClient.invalidateQueries({ queryKey: ["manual-debts"] });
+      toast({ title: `נוסף חוב ידני: ₪${amount}` });
+      setNewDebtAmount("");
+      setNewDebtNote("");
+      setShowAddDebt(false);
     } catch (error: any) {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
     } finally {
-      setSavingManualDebt(false);
+      setSavingNewDebt(false);
+    }
+  };
+
+  const deleteManualDebt = async (debtId: string) => {
+    setDeletingDebtId(debtId);
+    try {
+      await supabase.from("manual_debts").delete().eq("id", debtId);
+      queryClient.invalidateQueries({ queryKey: ["manual-debts"] });
+      toast({ title: "החוב הידני הוסר" });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setDeletingDebtId(null);
     }
   };
 
@@ -658,67 +679,94 @@ const PatientBillingCard = ({
               </form>
             </div>
 
-            {/* Manual debt (one-off, e.g. from previous years) */}
+            {/* Manual debts (one-off, e.g. from previous years) */}
             <div className="mt-3 pt-3 border-t border-dashed">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">
-                  חוב ידני (משנים קודמות / מחוץ למערכת)
+                  חובות ידניים (משנים קודמות / מחוץ למערכת)
                 </p>
-                {!editingManualDebt && (
+                {!showAddDebt && (
                   <button
-                    onClick={() => {
-                      setManualDebtInput(String(billing.patient.manual_debt || ""));
-                      setManualNoteInput(billing.patient.manual_debt_note || "");
-                      setEditingManualDebt(true);
-                    }}
-                    className="text-xs text-primary hover:underline"
+                    onClick={() => setShowAddDebt(true)}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
                   >
-                    {billing.patient.manual_debt ? "ערוך" : "הוסף"}
+                    <Plus className="h-3 w-3" />
+                    הוסף
                   </button>
                 )}
               </div>
 
-              {!editingManualDebt && billing.patient.manual_debt && billing.patient.manual_debt > 0 && (
-                <div className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-destructive/5 border border-destructive/30">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-destructive">₪{billing.patient.manual_debt}</span>
-                    {billing.patient.manual_debt_note && (
-                      <span className="text-xs text-muted-foreground">{billing.patient.manual_debt_note}</span>
-                    )}
+              {manualDebts.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {manualDebts.map((debt) => (
+                    <div
+                      key={debt.id}
+                      className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-destructive/5 border border-destructive/30 gap-2"
+                    >
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium text-destructive">₪{debt.amount}</span>
+                        {debt.note && (
+                          <span className="text-xs text-muted-foreground truncate">{debt.note}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deleteManualDebt(debt.id)}
+                        disabled={deletingDebtId === debt.id}
+                        className="text-destructive/60 hover:text-destructive p-1"
+                        title="מחק חוב"
+                      >
+                        {deletingDebtId === debt.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-xs font-medium pt-1">
+                    <span className="text-muted-foreground">סה״כ חובות ידניים</span>
+                    <span className="text-destructive">
+                      ₪{manualDebts.reduce((s, d) => s + Number(d.amount), 0)}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {editingManualDebt && (
-                <div className="space-y-2">
+              {showAddDebt && (
+                <div className="space-y-2 p-2 rounded border bg-accent/30">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">₪</span>
                     <Input
                       type="number"
                       placeholder="סכום החוב"
-                      value={manualDebtInput}
-                      onChange={(e) => setManualDebtInput(e.target.value)}
+                      value={newDebtAmount}
+                      onChange={(e) => setNewDebtAmount(e.target.value)}
                       className="h-8 flex-1 text-sm"
                       dir="ltr"
+                      autoFocus
                     />
                   </div>
                   <Input
                     placeholder="הערה (לדוג' חוב משנת 2024)"
-                    value={manualNoteInput}
-                    onChange={(e) => setManualNoteInput(e.target.value)}
+                    value={newDebtNote}
+                    onChange={(e) => setNewDebtNote(e.target.value)}
                     className="h-8 text-sm"
                   />
                   <div className="flex gap-2 justify-end">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setEditingManualDebt(false)}
-                      disabled={savingManualDebt}
+                      onClick={() => {
+                        setShowAddDebt(false);
+                        setNewDebtAmount("");
+                        setNewDebtNote("");
+                      }}
+                      disabled={savingNewDebt}
                     >
                       בטל
                     </Button>
-                    <Button size="sm" onClick={saveManualDebt} disabled={savingManualDebt}>
-                      {savingManualDebt ? <Loader2 className="h-3 w-3 animate-spin" /> : "שמור"}
+                    <Button size="sm" onClick={addManualDebt} disabled={savingNewDebt || !newDebtAmount}>
+                      {savingNewDebt ? <Loader2 className="h-3 w-3 animate-spin" /> : "שמור"}
                     </Button>
                   </div>
                 </div>
