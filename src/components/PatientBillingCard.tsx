@@ -20,6 +20,8 @@ interface Patient {
   name: string;
   phone: string;
   session_price: number;
+  manual_debt?: number;
+  manual_debt_note?: string | null;
 }
 
 interface Session {
