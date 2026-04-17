@@ -160,6 +160,37 @@ const PatientBillingCard = ({
     }
   };
 
+  // Manual debt (one-off, e.g. from previous years)
+  const [manualDebtInput, setManualDebtInput] = useState(String(billing.patient.manual_debt || ""));
+  const [manualNoteInput, setManualNoteInput] = useState(billing.patient.manual_debt_note || "");
+  const [savingManualDebt, setSavingManualDebt] = useState(false);
+  const [editingManualDebt, setEditingManualDebt] = useState(false);
+
+  const saveManualDebt = async () => {
+    if (!user) return;
+    const amount = parseFloat(manualDebtInput) || 0;
+    if (amount < 0) return;
+    setSavingManualDebt(true);
+    try {
+      await supabase
+        .from("patients")
+        .update({
+          manual_debt: amount,
+          manual_debt_note: amount > 0 ? (manualNoteInput.trim() || null) : null,
+        })
+        .eq("id", billing.patient.id);
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      toast({
+        title: amount > 0 ? `חוב ידני עודכן: ₪${amount}` : "החוב הידני הוסר",
+      });
+      setEditingManualDebt(false);
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingManualDebt(false);
+    }
+  };
+
   // Toggle a single session's paid status
   const toggleSessionPaid = async (session: Session) => {
     if (!session.eventId || !user) return;
