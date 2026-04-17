@@ -506,12 +506,17 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   });
 
   // Add manual debts (one-off, manually entered debts e.g. from previous years)
-  const manualDebtByPatient = new Map<string, { amount: number; note?: string | null }>();
-  patients.forEach((p) => {
-    const md = Number(p.manual_debt || 0);
-    if (md > 0) {
-      manualDebtByPatient.set(p.id, { amount: md, note: p.manual_debt_note });
-      priorDebtByPatient.set(p.id, (priorDebtByPatient.get(p.id) || 0) + md);
+  // A patient can have multiple manual debt records.
+  const manualDebtsByPatient = new Map<string, ManualDebt[]>();
+  manualDebts.forEach((d) => {
+    const list = manualDebtsByPatient.get(d.patient_id) || [];
+    list.push(d);
+    manualDebtsByPatient.set(d.patient_id, list);
+  });
+  manualDebtsByPatient.forEach((list, patientId) => {
+    const total = list.reduce((s, d) => s + Number(d.amount || 0), 0);
+    if (total > 0) {
+      priorDebtByPatient.set(patientId, (priorDebtByPatient.get(patientId) || 0) + total);
     }
   });
 
