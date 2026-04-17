@@ -89,11 +89,74 @@ const PatientBillingCard = ({
 
   const paidEventIds = new Set(payment?.paid_event_ids || []);
   const paidCount = billing.sessions.filter(s => s.eventId && paidEventIds.has(s.eventId)).length;
-  const allPaid = paidCount === billing.sessions.length && billing.sessions.length > 0;
-  const somePaid = paidCount > 0;
-  const paidAmount = billing.sessions
+  const sessionsPaidAmount = billing.sessions
     .filter(s => s.eventId && paidEventIds.has(s.eventId))
     .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
+  // Extra partial payment = amount stored beyond what sessions cover
+  const extraPaid = Math.max(0, (payment?.amount ?? 0) - sessionsPaidAmount);
+  const paidAmount = sessionsPaidAmount + extraPaid;
+  const allPaid = paidAmount >= billing.total && billing.sessions.length > 0;
+  const somePaid = paidAmount > 0;
+  const [extraInput, setExtraInput] = useState("");
+  const [savingExtra, setSavingExtra] = useState(false);
+
+  const saveExtraPayment = async (addAmount: number) => {
+    if (!user || addAmount <= 0) return;
+    setSavingExtra(true);
+    try {
+      const newAmount = (payment?.amount ?? 0) + addAmount;
+      const newAllPaid = newAmount >= billing.total;
+      if (payment) {
+        await supabase
+          .from("payments")
+          .update({
+            amount: newAmount,
+            paid: newAllPaid,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", payment.id);
+      } else {
+        await supabase.from("payments").insert({
+          therapist_id: user.id,
+          patient_id: billing.patient.id,
+          month: currentMonth,
+          amount: newAmount,
+          total_billed: billing.total,
+          session_count: 0,
+          paid: newAllPaid,
+          paid_at: new Date().toISOString(),
+          paid_event_ids: [],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      setExtraInput("");
+      toast({ title: `נוסף תשלום של ₪${addAmount}` });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingExtra(false);
+    }
+  };
+
+  const clearExtraPayment = async () => {
+    if (!payment || extraPaid <= 0) return;
+    setSavingExtra(true);
+    try {
+      await supabase
+        .from("payments")
+        .update({
+          amount: sessionsPaidAmount,
+          paid: sessionsPaidAmount >= billing.total && billing.sessions.length > 0,
+        })
+        .eq("id", payment.id);
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      toast({ title: "השלמת התשלום בוטלה" });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingExtra(false);
+    }
+  };
 
   // Toggle a single session's paid status
   const toggleSessionPaid = async (session: Session) => {
