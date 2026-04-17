@@ -166,34 +166,47 @@ const PatientBillingCard = ({
     }
   };
 
-  // Manual debt (one-off, e.g. from previous years)
-  const [manualDebtInput, setManualDebtInput] = useState(String(billing.patient.manual_debt || ""));
-  const [manualNoteInput, setManualNoteInput] = useState(billing.patient.manual_debt_note || "");
-  const [savingManualDebt, setSavingManualDebt] = useState(false);
-  const [editingManualDebt, setEditingManualDebt] = useState(false);
+  // Manual debts: list of one-off debts (e.g. from previous years)
+  const [newDebtAmount, setNewDebtAmount] = useState("");
+  const [newDebtNote, setNewDebtNote] = useState("");
+  const [savingNewDebt, setSavingNewDebt] = useState(false);
+  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [deletingDebtId, setDeletingDebtId] = useState<string | null>(null);
 
-  const saveManualDebt = async () => {
+  const addManualDebt = async () => {
     if (!user) return;
-    const amount = parseFloat(manualDebtInput) || 0;
-    if (amount < 0) return;
-    setSavingManualDebt(true);
+    const amount = parseFloat(newDebtAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    setSavingNewDebt(true);
     try {
-      await supabase
-        .from("patients")
-        .update({
-          manual_debt: amount,
-          manual_debt_note: amount > 0 ? (manualNoteInput.trim() || null) : null,
-        })
-        .eq("id", billing.patient.id);
-      queryClient.invalidateQueries({ queryKey: ["patients"] });
-      toast({
-        title: amount > 0 ? `חוב ידני עודכן: ₪${amount}` : "החוב הידני הוסר",
+      await supabase.from("manual_debts").insert({
+        therapist_id: user.id,
+        patient_id: billing.patient.id,
+        amount,
+        note: newDebtNote.trim() || null,
       });
-      setEditingManualDebt(false);
+      queryClient.invalidateQueries({ queryKey: ["manual-debts"] });
+      toast({ title: `נוסף חוב ידני: ₪${amount}` });
+      setNewDebtAmount("");
+      setNewDebtNote("");
+      setShowAddDebt(false);
     } catch (error: any) {
       toast({ title: "שגיאה", description: error.message, variant: "destructive" });
     } finally {
-      setSavingManualDebt(false);
+      setSavingNewDebt(false);
+    }
+  };
+
+  const deleteManualDebt = async (debtId: string) => {
+    setDeletingDebtId(debtId);
+    try {
+      await supabase.from("manual_debts").delete().eq("id", debtId);
+      queryClient.invalidateQueries({ queryKey: ["manual-debts"] });
+      toast({ title: "החוב הידני הוסר" });
+    } catch (error: any) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+    } finally {
+      setDeletingDebtId(null);
     }
   };
 
