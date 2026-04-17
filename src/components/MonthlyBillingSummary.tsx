@@ -552,14 +552,35 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       </CardHeader>
       <CardContent>
         {billingData.length > 0 && (
-          <div className="relative mb-4">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="חיפוש מטופל..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pr-9"
-            />
+          <div className="space-y-3 mb-4">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חיפוש מטופל..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pr-9"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { key: "all", label: "הכל" },
+                { key: "unpaid", label: "לא שולם" },
+                { key: "partial", label: "חלקי" },
+                { key: "paid", label: "שולם" },
+              ] as const).map((opt) => (
+                <Button
+                  key={opt.key}
+                  size="sm"
+                  variant={statusFilter === opt.key ? "default" : "outline"}
+                  onClick={() => setStatusFilter(opt.key)}
+                  className="h-8"
+                >
+                  {opt.label}
+                  <span className="mr-1.5 text-xs opacity-70">({statusCounts[opt.key]})</span>
+                </Button>
+              ))}
+            </div>
           </div>
         )}
         {filteredBillingData.length === 0 && filteredUnmatched.length === 0 ? (
