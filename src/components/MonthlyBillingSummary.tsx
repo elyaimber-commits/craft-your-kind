@@ -617,14 +617,19 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               return (
                 <div key={billing.patient.id}>
                   <div className="flex items-center gap-2 mb-1">
-                    {patientPriorDebt > 0 && (
-                      <div className="text-xs text-destructive font-medium pr-2">
-                        חוב מחודשים קודמים: ₪{patientPriorDebt}
-                        <span className="text-muted-foreground font-normal mr-2">
-                          ({patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`).join(" · ")})
-                        </span>
-                      </div>
-                    )}
+                    {patientPriorDebt > 0 && (() => {
+                      const manual = manualDebtByPatient.get(billing.patient.id);
+                      const parts: string[] = patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`);
+                      if (manual) parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      return (
+                        <div className="text-xs text-destructive font-medium pr-2">
+                          חוב מחודשים קודמים: ₪{patientPriorDebt}
+                          <span className="text-muted-foreground font-normal mr-2">
+                            ({parts.join(" · ")})
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-1.5 mr-auto" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         id={`mindme-${billing.patient.id}`}
