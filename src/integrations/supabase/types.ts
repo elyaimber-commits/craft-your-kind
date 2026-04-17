@@ -130,6 +130,44 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_debts: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          note: string | null
+          patient_id: string
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          patient_id: string
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          patient_id?: string
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_debts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           billing_type: string
@@ -139,8 +177,6 @@ export type Database = {
           created_at: string
           green_invoice_customer_id: string | null
           id: string
-          manual_debt: number
-          manual_debt_note: string | null
           mindme: boolean
           name: string
           parent_patient_id: string | null
@@ -157,8 +193,6 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
-          manual_debt?: number
-          manual_debt_note?: string | null
           mindme?: boolean
           name: string
           parent_patient_id?: string | null
@@ -175,8 +209,6 @@ export type Database = {
           created_at?: string
           green_invoice_customer_id?: string | null
           id?: string
-          manual_debt?: number
-          manual_debt_note?: string | null
           mindme?: boolean
           name?: string
           parent_patient_id?: string | null
