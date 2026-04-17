@@ -640,9 +640,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 <div key={billing.patient.id}>
                   <div className="flex items-center gap-2 mb-1">
                     {patientPriorDebt > 0 && (() => {
-                      const manual = manualDebtByPatient.get(billing.patient.id);
+                      const manuals = manualDebtsByPatient.get(billing.patient.id) || [];
                       const parts: string[] = patientDebtDetails.map(d => `${formatMonthLabel(d.month)}: ₪${d.debt}`);
-                      if (manual) parts.push(`ידני${manual.note ? ` (${manual.note})` : ""}: ₪${manual.amount}`);
+                      manuals.forEach(m => parts.push(`ידני${m.note ? ` (${m.note})` : ""}: ₪${m.amount}`));
                       return (
                         <div className="text-xs text-destructive font-medium pr-2">
                           חוב מחודשים קודמים: ₪{patientPriorDebt}
