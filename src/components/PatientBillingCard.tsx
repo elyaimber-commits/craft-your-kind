@@ -72,6 +72,7 @@ interface PatientBillingCardProps {
   generateWhatsAppMessage: (billing: PatientBilling) => string;
   calendarEventName?: string;
   priorDebtDetails?: PriorDebtDetail[];
+  manualDebts?: ManualDebt[];
 }
 
 const PatientBillingCard = ({
@@ -83,6 +84,7 @@ const PatientBillingCard = ({
   generateWhatsAppMessage,
   calendarEventName,
   priorDebtDetails = [],
+  manualDebts = [],
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
