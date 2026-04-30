@@ -862,6 +862,36 @@ const PatientBillingCard = ({
           </div>
         </div>
       )}
+
+      {partialDialogOpen && (
+        <PartialPaymentDialog
+          open={partialDialogOpen}
+          onOpenChange={(o) => {
+            setPartialDialogOpen(o);
+            if (!o) {
+              setExtraInput("");
+              setPendingAmount(0);
+            }
+          }}
+          amount={pendingAmount}
+          patient={billing.patient}
+          currentMonth={currentMonth}
+          currentMonthSessions={billing.sessions}
+          currentMonthBillingTotal={billing.total}
+          currentMonthPayment={
+            payment
+              ? {
+                  id: payment.id,
+                  amount: payment.amount,
+                  paid_event_ids: payment.paid_event_ids,
+                  total_billed: payment.total_billed,
+                }
+              : undefined
+          }
+          priorDebtDetails={priorDebtDetails}
+          aliasNames={patientAliases}
+        />
+      )}
     </div>
   );
 };
