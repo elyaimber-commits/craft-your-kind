@@ -12,6 +12,8 @@ import { Plus, Pencil, Trash2, LogOut, Users, History, Download, BarChart3 } fro
 import GoogleCalendarSection from "@/components/GoogleCalendarSection";
 import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
+import SmartAlertsCard from "@/components/SmartAlertsCard";
+import WorkHoursCard from "@/components/WorkHoursCard";
 import DataExport from "@/components/DataExport";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
