@@ -64,6 +64,14 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      backgroundImage: {
+        "gradient-primary": "var(--gradient-primary)",
+        "gradient-stone": "var(--gradient-stone)",
+      },
+      boxShadow: {
+        soft: "var(--shadow-soft)",
+        elegant: "var(--shadow-elegant)",
+      },
       keyframes: {
         "accordion-down": {
           from: {
