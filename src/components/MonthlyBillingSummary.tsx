@@ -283,6 +283,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               : event.start.date
               ? (() => { const d = new Date(event.start.date!); return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`; })()
               : "",
+            startISO: event.start.dateTime || event.start.date || "",
             summary: event.summary || "",
             eventId: event.id,
             calendarId: event.organizer?.email || "primary",
