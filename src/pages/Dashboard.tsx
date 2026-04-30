@@ -13,6 +13,7 @@ import GoogleCalendarSection from "@/components/GoogleCalendarSection";
 import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
 import DataExport from "@/components/DataExport";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
 
 interface Patient {
