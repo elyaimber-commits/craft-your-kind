@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import PartialPaymentDialog from "./PartialPaymentDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -37,6 +38,7 @@ interface Session {
   calendarId?: string;
   childPatientName?: string;
   sessionPrice?: number;
+  startISO?: string;
 }
 
 interface PatientBilling {
@@ -109,6 +111,22 @@ const PatientBillingCard = ({
   const somePaid = paidAmount > 0;
   const [extraInput, setExtraInput] = useState("");
   const [savingExtra, setSavingExtra] = useState(false);
+  const [partialDialogOpen, setPartialDialogOpen] = useState(false);
+  const [pendingAmount, setPendingAmount] = useState(0);
+
+  // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
+  const { data: patientAliases = [] } = useQuery({
+    queryKey: ["event-aliases-for-patient", billing.patient.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_aliases")
+        .select("event_name")
+        .eq("patient_id", billing.patient.id);
+      if (error) throw error;
+      return (data || []).map((a: any) => a.event_name as string);
+    },
+    enabled: partialDialogOpen,
+  });
 
   const saveExtraPayment = async (addAmount: number) => {
     if (!user || addAmount <= 0) return;
@@ -675,7 +693,10 @@ const PatientBillingCard = ({
                 onSubmit={(e) => {
                   e.preventDefault();
                   const v = parseFloat(extraInput);
-                  if (!isNaN(v) && v > 0) saveExtraPayment(v);
+                  if (!isNaN(v) && v > 0) {
+                    setPendingAmount(v);
+                    setPartialDialogOpen(true);
+                  }
                 }}
                 className="flex items-center gap-2"
               >
@@ -688,8 +709,8 @@ const PatientBillingCard = ({
                   className="h-8 flex-1 text-sm"
                   dir="ltr"
                 />
-                <Button type="submit" size="sm" disabled={savingExtra || !extraInput}>
-                  {savingExtra ? <Loader2 className="h-3 w-3 animate-spin" /> : "הוסף"}
+                <Button type="submit" size="sm" disabled={!extraInput}>
+                  הוסף
                 </Button>
               </form>
             </div>
@@ -840,6 +861,36 @@ const PatientBillingCard = ({
             )}
           </div>
         </div>
+      )}
+
+      {partialDialogOpen && (
+        <PartialPaymentDialog
+          open={partialDialogOpen}
+          onOpenChange={(o) => {
+            setPartialDialogOpen(o);
+            if (!o) {
+              setExtraInput("");
+              setPendingAmount(0);
+            }
+          }}
+          amount={pendingAmount}
+          patient={billing.patient}
+          currentMonth={currentMonth}
+          currentMonthSessions={billing.sessions}
+          currentMonthBillingTotal={billing.total}
+          currentMonthPayment={
+            payment
+              ? {
+                  id: payment.id,
+                  amount: payment.amount,
+                  paid_event_ids: payment.paid_event_ids,
+                  total_billed: payment.total_billed,
+                }
+              : undefined
+          }
+          priorDebtDetails={priorDebtDetails}
+          aliasNames={patientAliases}
+        />
       )}
     </div>
   );
