@@ -693,7 +693,10 @@ const PatientBillingCard = ({
                 onSubmit={(e) => {
                   e.preventDefault();
                   const v = parseFloat(extraInput);
-                  if (!isNaN(v) && v > 0) saveExtraPayment(v);
+                  if (!isNaN(v) && v > 0) {
+                    setPendingAmount(v);
+                    setPartialDialogOpen(true);
+                  }
                 }}
                 className="flex items-center gap-2"
               >
@@ -706,8 +709,8 @@ const PatientBillingCard = ({
                   className="h-8 flex-1 text-sm"
                   dir="ltr"
                 />
-                <Button type="submit" size="sm" disabled={savingExtra || !extraInput}>
-                  {savingExtra ? <Loader2 className="h-3 w-3 animate-spin" /> : "הוסף"}
+                <Button type="submit" size="sm" disabled={!extraInput}>
+                  הוסף
                 </Button>
               </form>
             </div>
