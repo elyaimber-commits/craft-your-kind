@@ -12,6 +12,8 @@ import { Plus, Pencil, Trash2, LogOut, Users, History, Download, BarChart3 } fro
 import GoogleCalendarSection from "@/components/GoogleCalendarSection";
 import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
+import SmartAlertsCard from "@/components/SmartAlertsCard";
+import WorkHoursCard from "@/components/WorkHoursCard";
 import DataExport from "@/components/DataExport";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
@@ -193,6 +195,12 @@ const Dashboard = () => {
         {/* Google Calendar connection (only shows if not connected) */}
         <div className="mb-6">
           <GoogleCalendarSection />
+        </div>
+
+        {/* Smart alerts + work hours analytics */}
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <SmartAlertsCard patients={patients} />
+          <WorkHoursCard patients={patients} />
         </div>
 
         {/* Monthly billing summary - the main view */}
