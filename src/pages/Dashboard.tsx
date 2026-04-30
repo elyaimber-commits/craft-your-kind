@@ -14,6 +14,7 @@ import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
 import SmartAlertsCard from "@/components/SmartAlertsCard";
 import WorkHoursCard from "@/components/WorkHoursCard";
+import PersonalAssistantCard from "@/components/PersonalAssistantCard";
 import DataExport from "@/components/DataExport";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
