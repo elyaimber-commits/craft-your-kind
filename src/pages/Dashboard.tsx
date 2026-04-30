@@ -197,6 +197,12 @@ const Dashboard = () => {
           <GoogleCalendarSection />
         </div>
 
+        {/* Smart alerts + work hours analytics */}
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <SmartAlertsCard patients={patients} />
+          <WorkHoursCard patients={patients} />
+        </div>
+
         {/* Monthly billing summary - the main view */}
         <div className="mb-6">
           <MonthlyBillingSummary patients={patients} />
