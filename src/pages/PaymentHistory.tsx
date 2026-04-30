@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Search, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const PaymentHistory = () => {
   const { user } = useAuth();
@@ -68,10 +69,13 @@ const PaymentHistory = () => {
             <History className="h-6 w-6" />
             היסטוריית תשלומים
           </h1>
-          <Button variant="outline" onClick={() => navigate("/dashboard")}>
-            <ArrowRight className="ml-2 h-4 w-4" />
-            חזרה
-          </Button>
+          <div className="flex gap-2">
+            <ThemeToggle />
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              <ArrowRight className="ml-2 h-4 w-4" />
+              חזרה
+            </Button>
+          </div>
         </div>
 
         <div className="relative mb-4">

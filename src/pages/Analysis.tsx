@@ -16,6 +16,7 @@ import {
 import SummaryTab from "@/components/analysis/SummaryTab";
 import PerPatientTab from "@/components/analysis/PerPatientTab";
 import SettingsTab from "@/components/analysis/SettingsTab";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function getCurrentMonth() {
   const now = new Date();
@@ -72,6 +73,7 @@ export default function Analysis() {
             </Button>
             <h1 className="text-2xl sm:text-3xl font-bold">📊 ניתוח חודשי</h1>
           </div>
+          <ThemeToggle />
         </div>
 
         {/* Month selector */}
