@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { getStoredVatRate } from "@/hooks/useAnalysisData";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -243,11 +244,14 @@ export default function WeeklyFinance() {
     <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold">💰 כלכלה שבועית</h1>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+              <ArrowRight className="h-5 w-5" />
+            </Button>
+            <h1 className="text-2xl sm:text-3xl font-bold">💰 כלכלה שבועית</h1>
+          </div>
+          <ThemeToggle />
         </div>
 
         {/* Week navigation */}
