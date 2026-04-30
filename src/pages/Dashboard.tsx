@@ -198,6 +198,11 @@ const Dashboard = () => {
           <GoogleCalendarSection />
         </div>
 
+        {/* Personal AI assistant */}
+        <div className="mb-6">
+          <PersonalAssistantCard />
+        </div>
+
         {/* Smart alerts + work hours analytics */}
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <SmartAlertsCard patients={patients} />
