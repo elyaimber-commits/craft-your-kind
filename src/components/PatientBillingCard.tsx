@@ -37,6 +37,7 @@ interface Session {
   calendarId?: string;
   childPatientName?: string;
   sessionPrice?: number;
+  startISO?: string;
 }
 
 interface PatientBilling {
