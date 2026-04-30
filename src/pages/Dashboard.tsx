@@ -14,6 +14,7 @@ import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
 import SmartAlertsCard from "@/components/SmartAlertsCard";
 import WorkHoursCard from "@/components/WorkHoursCard";
+import PersonalAssistantCard from "@/components/PersonalAssistantCard";
 import DataExport from "@/components/DataExport";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
@@ -195,6 +196,11 @@ const Dashboard = () => {
         {/* Google Calendar connection (only shows if not connected) */}
         <div className="mb-6">
           <GoogleCalendarSection />
+        </div>
+
+        {/* Personal AI assistant */}
+        <div className="mb-6">
+          <PersonalAssistantCard />
         </div>
 
         {/* Smart alerts + work hours analytics */}
