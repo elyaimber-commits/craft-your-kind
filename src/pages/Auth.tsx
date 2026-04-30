@@ -59,7 +59,10 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4" dir="rtl">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 relative" dir="rtl">
+      <div className="absolute top-4 left-4">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">💬 שליחת בקשות תשלום</CardTitle>
