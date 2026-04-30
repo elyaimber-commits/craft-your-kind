@@ -379,38 +379,27 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     syncPayments();
   }, [calendarData, payments, billingData, currentMonth, user]);
 
-  // Find unmatched billing events (yellow/purple that didn't match any patient)
-  const unmatchedBillingEvents = billingEvents.filter((e) => !matchedEventIds.has(e.id));
-
-  // Find ALL unmatched events (any color) for new patient discovery
-  const allMatchedIds = new Set(matchedEventIds);
-  const unmatchedAllEvents = allEvents.filter(
-    (e) => !allMatchedIds.has(e.id) && (e.summary || "").trim().length > 0
-  );
-
-  // Group unmatched events by name
-  const unmatchedByName: Record<string, { count: number; isBilling: boolean }> = {};
-  unmatchedBillingEvents.forEach((e) => {
+  // Find ALL unmatched events that look like sessions (exclude all-day events,
+  // cancelled events, and empty titles). All other events with a title are
+  // candidates for new-patient suggestions — regardless of language or color.
+  const unmatchedSessionEvents = allEvents.filter((e) => {
+    if (matchedEventIds.has(e.id)) return false;
     const name = (e.summary || "").trim();
-    if (name) {
-      if (!unmatchedByName[name]) unmatchedByName[name] = { count: 0, isBilling: true };
-      unmatchedByName[name].count++;
-    }
+    if (!name) return false;
+    if (e.colorId === CANCELLED_COLOR_ID) return false;
+    // Skip all-day events (no dateTime, only date) — these are usually holidays/birthdays
+    if (!e.start.dateTime) return false;
+    return true;
   });
 
-  // Also add non-billing unmatched events (for future patient discovery)
-  unmatchedAllEvents.forEach((e) => {
+  // Group unmatched events by name and count occurrences
+  const unmatchedByName: Record<string, { count: number; isBilling: boolean }> = {};
+  unmatchedSessionEvents.forEach((e) => {
     const name = (e.summary || "").trim();
-    if (name && !unmatchedByName[name]) {
-      // Check if this event name matches any patient (via exact or alias)
-      const matched = findMatchingPatient(name, patients, aliasMap);
-      if (!matched) {
-        unmatchedByName[name] = { count: 0, isBilling: false };
-      }
+    if (!unmatchedByName[name]) {
+      unmatchedByName[name] = { count: 0, isBilling: isBillingEvent(e.colorId) };
     }
-    if (name && unmatchedByName[name] && !BILLING_COLOR_IDS.includes(e.colorId || "")) {
-      unmatchedByName[name].count++;
-    }
+    unmatchedByName[name].count++;
   });
 
   // Filter out event names that are already linked via alias or ignored
