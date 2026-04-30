@@ -111,6 +111,22 @@ const PatientBillingCard = ({
   const somePaid = paidAmount > 0;
   const [extraInput, setExtraInput] = useState("");
   const [savingExtra, setSavingExtra] = useState(false);
+  const [partialDialogOpen, setPartialDialogOpen] = useState(false);
+  const [pendingAmount, setPendingAmount] = useState(0);
+
+  // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
+  const { data: patientAliases = [] } = useQuery({
+    queryKey: ["event-aliases-for-patient", billing.patient.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_aliases")
+        .select("event_name")
+        .eq("patient_id", billing.patient.id);
+      if (error) throw error;
+      return (data || []).map((a: any) => a.event_name as string);
+    },
+    enabled: partialDialogOpen,
+  });
 
   const saveExtraPayment = async (addAmount: number) => {
     if (!user || addAmount <= 0) return;
