@@ -572,6 +572,14 @@ const PatientBillingCard = ({
             {allPaid ? "בטל הכל" : "סמן הכל כשולם"}
           </Button>
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setInvoiceDialogOpen(true)}
+          >
+            <FileText className="ml-1 h-4 w-4" />
+            הפק חשבונית
+          </Button>
 
           <button
             onClick={onToggle}
