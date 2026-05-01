@@ -21,6 +21,7 @@ interface Patient {
   billing_type?: string;
   parent_patient_id?: string | null;
   mindme?: boolean;
+  skip_green_invoice?: boolean;
 }
 
 interface ManualDebt {
@@ -48,10 +49,13 @@ interface MonthlyBillingSummaryProps {
 // default (undefined) = needs billing, session summary not written
 // "5" (banana/yellow) = needs billing, session summary done
 // "4" (flamingo/red) = cancelled, no billing
-// "3" (grape/purple) = paid
-const BILLING_COLOR_IDS = ["5", "3"]; // Banana (unpaid) + Grape (paid)
+// "3" (grape/purple) = paid (with invoice)
+// "6" (tangerine/orange) = paid, pending invoice
+const BILLING_COLOR_IDS = ["5", "3", "6"]; // Banana (unpaid) + Grape (paid) + Tangerine (paid pending invoice)
 const isBillingEvent = (colorId?: string) => !colorId || BILLING_COLOR_IDS.includes(colorId);
 const CANCELLED_COLOR_ID = "4";
+const PAID_COLOR_ID = "3";
+const PENDING_INVOICE_COLOR_ID = "6";
 
 /** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics, collapse duplicate Hebrew letters */
 const normalizeName = (name: string): string =>
@@ -112,7 +116,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [debtExpanded, setDebtExpanded] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice">("all");
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -313,10 +317,10 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       for (const billing of billingData) {
         const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
 
-        // Find purple (paid) sessions
+        // Find paid sessions (purple = paid w/ invoice, orange = paid pending invoice)
         const purpleSessions = billing.sessions.filter((s) => {
           const event = events.find((e) => e.id === s.eventId);
-          return event?.colorId === "3" && s.eventId;
+          return (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID) && s.eventId;
         });
 
         const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
@@ -438,10 +442,24 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return "partial";
   };
 
+  // Detect "paid pending invoice": patient has at least one orange session this month
+  // (skipped if patient is configured to skip Green Invoice)
+  const hasPendingInvoice = (b: typeof billingData[number]): boolean => {
+    if ((b.patient as any).skip_green_invoice) return false;
+    return b.sessions.some((s) => {
+      const ev = events.find((e) => e.id === s.eventId);
+      return ev?.colorId === PENDING_INVOICE_COLOR_ID;
+    });
+  };
+
   // Filter billing data by search query and status
   const filteredBillingData = billingData
     .filter((b) => (searchQuery.trim() ? b.patient.name.includes(searchQuery.trim()) : true))
-    .filter((b) => (statusFilter === "all" ? true : getPatientStatus(b) === statusFilter));
+    .filter((b) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "pending_invoice") return hasPendingInvoice(b);
+      return getPatientStatus(b) === statusFilter;
+    });
 
   // Counts per status (based on search-filtered data, before status filter)
   const searchOnlyData = searchQuery.trim()
@@ -452,6 +470,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     paid: searchOnlyData.filter((b) => getPatientStatus(b) === "paid").length,
     unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
     partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
+    pending_invoice: searchOnlyData.filter((b) => hasPendingInvoice(b)).length,
   };
 
   // MindMe commission calculations
@@ -597,6 +616,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 { key: "unpaid", label: "לא שולם" },
                 { key: "partial", label: "חלקי" },
                 { key: "paid", label: "שולם" },
+                { key: "pending_invoice", label: "ממתין לחשבונית" },
               ] as const).map((opt) => (
                 <Button
                   key={opt.key}
