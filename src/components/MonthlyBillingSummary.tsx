@@ -441,10 +441,24 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return "partial";
   };
 
+  // Detect "paid pending invoice": patient has at least one orange session this month
+  // (skipped if patient is configured to skip Green Invoice)
+  const hasPendingInvoice = (b: typeof billingData[number]): boolean => {
+    if ((b.patient as any).skip_green_invoice) return false;
+    return b.sessions.some((s) => {
+      const ev = events.find((e) => e.id === s.eventId);
+      return ev?.colorId === PENDING_INVOICE_COLOR_ID;
+    });
+  };
+
   // Filter billing data by search query and status
   const filteredBillingData = billingData
     .filter((b) => (searchQuery.trim() ? b.patient.name.includes(searchQuery.trim()) : true))
-    .filter((b) => (statusFilter === "all" ? true : getPatientStatus(b) === statusFilter));
+    .filter((b) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "pending_invoice") return hasPendingInvoice(b);
+      return getPatientStatus(b) === statusFilter;
+    });
 
   // Counts per status (based on search-filtered data, before status filter)
   const searchOnlyData = searchQuery.trim()
@@ -455,6 +469,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     paid: searchOnlyData.filter((b) => getPatientStatus(b) === "paid").length,
     unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
     partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
+    pending_invoice: searchOnlyData.filter((b) => hasPendingInvoice(b)).length,
   };
 
   // MindMe commission calculations
