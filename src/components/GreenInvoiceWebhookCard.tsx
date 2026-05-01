@@ -241,18 +241,28 @@ const GreenInvoiceWebhookCard = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Missing IDs warning */}
+        {/* Missing IDs section */}
         {stats && stats.missingIds.length > 0 && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              <strong>{stats.missingIds.length} מטופלים</strong> ללא Green Invoice ID — חשבוניות עבורם לא יסונכרנו אוטומטית:
-              <div className="mt-1 text-muted-foreground">
-                {stats.missingIds.slice(0, 8).map((p) => p.name).join(" · ")}
-                {stats.missingIds.length > 8 && ` · ועוד ${stats.missingIds.length - 8}`}
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <div className="text-sm font-medium">
+                מטופלים ללא Green Invoice ID ({stats.missingIds.length})
               </div>
-            </AlertDescription>
-          </Alert>
+            </div>
+            <div className="text-xs text-muted-foreground mb-2">
+              חשבוניות עבור המטופלים הבאים לא יסונכרנו אוטומטית:
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded bg-background/50 border">
+              <ul className="divide-y">
+                {stats.missingIds.map((p) => (
+                  <li key={p.id} className="px-3 py-1.5 text-xs">
+                    {p.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
