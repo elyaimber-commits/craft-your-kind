@@ -44,14 +44,21 @@ function formatTime(s: number) {
 const SessionNoteRecorderDialog = ({
   open,
   onOpenChange,
+  patientId,
   patientName,
   sessionDate,
+  driveFolderId,
+  driveFolderName,
+  onFolderUpdated,
 }: SessionNoteRecorderDialogProps) => {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [cleaned, setCleaned] = useState("");
+  const [savingToDrive, setSavingToDrive] = useState(false);
+  const [savedToDrive, setSavedToDrive] = useState(false);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
