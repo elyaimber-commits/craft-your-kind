@@ -118,6 +118,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debtExpanded, setDebtExpanded] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice">("all");
+  const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
