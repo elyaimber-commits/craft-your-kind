@@ -317,37 +317,59 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       for (const billing of billingData) {
         const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
 
-        // Find paid sessions (purple = paid w/ invoice, orange = paid pending invoice)
-        const purpleSessions = billing.sessions.filter((s) => {
-          const event = events.find((e) => e.id === s.eventId);
-          return (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID) && s.eventId;
-        });
+        // Source of truth = Google Calendar color. Purple/Orange = paid.
+        // Anything else (including Banana/yellow) is treated as unpaid, even if it
+        // was previously marked paid in DB. This makes manual color changes in
+        // Google Calendar fully reversible.
+        const paidSessionIds = new Set(
+          billing.sessions
+            .filter((s) => {
+              const event = events.find((e) => e.id === s.eventId);
+              return (
+                s.eventId &&
+                (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID)
+              );
+            })
+            .map((s) => s.eventId!)
+        );
 
-        const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
-        const allPaidIds = [...new Set([
-          ...Array.from(existingPaidIds),
-          ...purpleSessions.map(s => s.eventId!),
-        ])] as string[];
+        const existingPaidIds = new Set<string>(((existingPayment as any)?.paid_event_ids || []) as string[]);
+
+        // Keep only previously-stored ids that still belong to this month's events,
+        // so removing a paid color in the calendar removes it from DB too.
+        const monthEventIds = new Set(billing.sessions.map((s) => s.eventId).filter(Boolean) as string[]);
+        const preservedExtraIds = Array.from(existingPaidIds).filter(
+          (id) => !monthEventIds.has(id)
+        );
+
+        const allPaidIds = [
+          ...new Set([...preservedExtraIds, ...Array.from(paidSessionIds)]),
+        ];
 
         const sessionsPaidAmount = billing.sessions
-          .filter(s => s.eventId && allPaidIds.includes(s.eventId))
+          .filter((s) => s.eventId && paidSessionIds.has(s.eventId))
           .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
 
         // Preserve any "extra" partial payment beyond what sessions cover
         const previousAmount = (existingPayment as any)?.amount ?? 0;
         const previousSessionsAmount = billing.sessions
-          .filter(s => s.eventId && existingPaidIds.has(s.eventId))
+          .filter((s) => s.eventId && existingPaidIds.has(s.eventId))
           .reduce((sum, s) => sum + (s.sessionPrice ?? billing.patient.session_price), 0);
         const extraPaid = Math.max(0, previousAmount - previousSessionsAmount);
         const paidAmount = sessionsPaidAmount + extraPaid;
 
-        const allPaid = paidAmount >= billing.total;
+        const allPaid = paidAmount >= billing.total && billing.total > 0;
 
         if (existingPayment) {
-          // Update total_billed + paid info
+          // Detect set differences (ids added or removed)
+          const sameSet =
+            allPaidIds.length === existingPaidIds.size &&
+            allPaidIds.every((id) => existingPaidIds.has(id));
           const needsUpdate =
             (existingPayment as any).total_billed !== billing.total ||
-            allPaidIds.length !== existingPaidIds.size;
+            !sameSet ||
+            (existingPayment as any).paid !== allPaid ||
+            Number((existingPayment as any).amount ?? 0) !== paidAmount;
           if (needsUpdate) {
             await supabase
               .from("payments")
