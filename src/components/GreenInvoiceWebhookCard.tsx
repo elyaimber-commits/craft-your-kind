@@ -99,6 +99,7 @@ const GreenInvoiceWebhookCard = () => {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [showOnlyFailed, setShowOnlyFailed] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["green-invoice-stats-v2"],
@@ -210,7 +211,16 @@ const GreenInvoiceWebhookCard = () => {
               <div className="text-xs text-muted-foreground mt-0.5">
                 ב-24 שעות: {stats.success24h} הצליחו
                 {stats.failed24h > 0 && (
-                  <span className="text-destructive">, {stats.failed24h} נכשלו</span>
+                  <>
+                    ,{" "}
+                    <button
+                      type="button"
+                      onClick={() => { setShowOnlyFailed(true); setLogsOpen(true); refetchLogs(); }}
+                      className="text-destructive underline hover:no-underline font-medium"
+                    >
+                      {stats.failed24h} נכשלו - הצג פירוט
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -260,24 +270,46 @@ const GreenInvoiceWebhookCard = () => {
         </div>
 
         {/* Logs button */}
-        <Dialog open={logsOpen} onOpenChange={(o) => { setLogsOpen(o); if (o) refetchLogs(); }}>
+        <Dialog open={logsOpen} onOpenChange={(o) => { setLogsOpen(o); if (o) refetchLogs(); else setShowOnlyFailed(false); }}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setShowOnlyFailed(false)}>
               <ScrollText className="ml-2 h-4 w-4" />
               הצג יומן Webhook (20 אחרונים)
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>יומן קריאות Webhook מגרין-אינבויס</DialogTitle>
+              <DialogTitle>
+                {showOnlyFailed ? "כשלונות Webhook (24 שעות)" : "יומן קריאות Webhook מגרין-אינבויס"}
+              </DialogTitle>
             </DialogHeader>
+            <div className="flex items-center gap-2 pb-2">
+              <Button
+                size="sm"
+                variant={showOnlyFailed ? "default" : "outline"}
+                onClick={() => setShowOnlyFailed(true)}
+              >
+                רק כשלונות
+              </Button>
+              <Button
+                size="sm"
+                variant={!showOnlyFailed ? "default" : "outline"}
+                onClick={() => setShowOnlyFailed(false)}
+              >
+                הכל
+              </Button>
+            </div>
             <div className="space-y-2">
-              {!logs || logs.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  עדיין לא התקבלו קריאות מגרין-אינבויס.
-                </div>
-              ) : (
-                logs.map((log: any) => (
+              {(() => {
+                const filtered = (logs || []).filter((l: any) => !showOnlyFailed || l.error);
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      {showOnlyFailed ? "אין כשלונות 🎉" : "עדיין לא התקבלו קריאות מגרין-אינבויס."}
+                    </div>
+                  );
+                }
+                return filtered.map((log: any) => (
                   <div
                     key={log.id}
                     className={`rounded-md border p-3 text-xs space-y-1 ${
@@ -296,10 +328,10 @@ const GreenInvoiceWebhookCard = () => {
                       </div>
                     )}
                     {log.error && (
-                      <div className="text-destructive">שגיאה: {log.error}</div>
+                      <div className="text-destructive font-medium">שגיאה: {log.error}</div>
                     )}
                     {log.payload && (
-                      <details className="mt-1">
+                      <details className="mt-1" open={!!log.error}>
                         <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                           הצג Payload
                         </summary>
@@ -309,8 +341,8 @@ const GreenInvoiceWebhookCard = () => {
                       </details>
                     )}
                   </div>
-                ))
-              )}
+                ));
+              })()}
             </div>
           </DialogContent>
         </Dialog>
