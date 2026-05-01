@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2 } from "lucide-react";
 
 const WEBHOOK_URL = "https://puejfjhrinmsjvisyomh.supabase.co/functions/v1/green-invoice-webhook";
 
@@ -22,8 +22,54 @@ const formatDate = (iso: string) => {
   return d.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" });
 };
 
+const MissingIdRow = ({ patient, onSaved }: { patient: { id: string; name: string }; onSaved: () => void }) => {
+  const { toast } = useToast();
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast({ title: "יש להזין מזהה", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("patients")
+      .update({ green_invoice_customer_id: trimmed })
+      .eq("id", patient.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "שגיאה בשמירה", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "נשמר", description: `${patient.name} עודכן בהצלחה` });
+    setValue("");
+    onSaved();
+  };
+
+  return (
+    <li className="flex items-center gap-2 px-3 py-2">
+      <span className="flex-1 text-xs truncate">{patient.name}</span>
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+        placeholder="Green Invoice ID"
+        className="h-7 text-xs w-40"
+        dir="ltr"
+        disabled={saving}
+      />
+      <Button size="sm" variant="outline" className="h-7 px-2" onClick={save} disabled={saving}>
+        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      </Button>
+    </li>
+  );
+};
+
 const GreenInvoiceWebhookCard = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
 
@@ -253,12 +299,16 @@ const GreenInvoiceWebhookCard = () => {
             <div className="text-xs text-muted-foreground mb-2">
               חשבוניות עבור המטופלים הבאים לא יסונכרנו אוטומטית:
             </div>
-            <div className="max-h-48 overflow-y-auto rounded bg-background/50 border">
+            <div className="max-h-72 overflow-y-auto rounded bg-background/50 border">
               <ul className="divide-y">
                 {stats.missingIds.map((p) => (
-                  <li key={p.id} className="px-3 py-1.5 text-xs">
-                    {p.name}
-                  </li>
+                  <MissingIdRow
+                    key={p.id}
+                    patient={p}
+                    onSaved={() => {
+                      queryClient.invalidateQueries({ queryKey: ["green-invoice-stats-v2"] });
+                    }}
+                  />
                 ))}
               </ul>
             </div>
