@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import PartialPaymentDialog from "./PartialPaymentDialog";
+import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   Pencil,
   Trash2,
   Plus,
+  FileText,
 } from "lucide-react";
 
 interface Patient {
