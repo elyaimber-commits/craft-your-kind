@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import PartialPaymentDialog from "./PartialPaymentDialog";
+import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   Pencil,
   Trash2,
   Plus,
+  FileText,
 } from "lucide-react";
 
 interface Patient {
@@ -39,6 +41,7 @@ interface Session {
   childPatientName?: string;
   sessionPrice?: number;
   startISO?: string;
+  isPaidPending?: boolean;
 }
 
 interface PatientBilling {
@@ -113,6 +116,7 @@ const PatientBillingCard = ({
   const [savingExtra, setSavingExtra] = useState(false);
   const [partialDialogOpen, setPartialDialogOpen] = useState(false);
   const [pendingAmount, setPendingAmount] = useState(0);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
@@ -568,6 +572,14 @@ const PatientBillingCard = ({
             {allPaid ? "בטל הכל" : "סמן הכל כשולם"}
           </Button>
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setInvoiceDialogOpen(true)}
+          >
+            <FileText className="ml-1 h-4 w-4" />
+            הפק חשבונית
+          </Button>
 
           <button
             onClick={onToggle}
@@ -892,6 +904,19 @@ const PatientBillingCard = ({
           aliasNames={patientAliases}
         />
       )}
+
+      <GreenInvoiceCreateDialog
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        patient={billing.patient}
+        sessions={billing.sessions.map((s) => ({
+          date: s.date,
+          summary: s.summary,
+          eventId: s.eventId,
+          sessionPrice: s.sessionPrice,
+          isPaidPending: (s as any).isPaidPending,
+        }))}
+      />
     </div>
   );
 };
