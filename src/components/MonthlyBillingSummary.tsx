@@ -581,7 +581,18 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         </CardTitle>
         {billingData.length > 0 && (
           <div className="text-sm font-normal text-muted-foreground space-y-1 mt-2">
-            <div>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>שולם: ₪{totalPaid} / ₪{totalBilled} · נותר החודש: ₪{currentMonthRemaining}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs gap-1"
+                onClick={() => setPaidBreakdownOpen(true)}
+              >
+                <ListChecks className="h-3 w-3" />
+                פירוט
+              </Button>
+            </div>
             {allPriorDebt > 0 && (
               <Collapsible open={debtExpanded} onOpenChange={setDebtExpanded}>
                 <CollapsibleTrigger className="text-destructive font-medium flex items-center gap-1.5 hover:underline cursor-pointer w-full text-right">
