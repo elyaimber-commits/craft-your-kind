@@ -74,11 +74,14 @@ serve(async (req) => {
     const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
 
+    const docType = payload?.type;
+    const externalIdEarly = payload?.id ? String(payload.id) : (payload?.number ? String(payload.number) : null);
+
     // Extract client ID from the webhook payload
-    // Green Invoice document structure has client.id
     const clientId = payload?.recipient?.id || payload?.client?.id;
     if (!clientId) {
       console.log("No client ID in webhook payload, ignoring");
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : 'unknown', external_payment_id: externalIdEarly, error: 'no_client_id', payload });
       return new Response(JSON.stringify({ ok: true, message: "No client ID, ignored" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -87,9 +90,9 @@ serve(async (req) => {
     // Document types that indicate payment: 
     // 320 = receipt, 305 = invoice+receipt, 400 = receipt
     const paymentDocTypes = [320, 305, 400];
-    const docType = payload?.type;
     if (docType && !paymentDocTypes.includes(docType)) {
       console.log(`Document type ${docType} is not a payment document, ignoring`);
+      await logWebhook({ status_code: 200, event_type: String(docType), external_payment_id: externalIdEarly, error: 'not_payment_doc', payload });
       return new Response(JSON.stringify({ ok: true, message: "Not a payment document" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -104,6 +107,7 @@ serve(async (req) => {
 
     if (patientError || !patient) {
       console.log(`No patient found for Green Invoice client ID: ${clientId}`);
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalIdEarly, error: `no_patient_for_client_id:${clientId}`, payload });
       return new Response(JSON.stringify({ ok: true, message: "No matching patient found" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
