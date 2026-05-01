@@ -175,6 +175,8 @@ export type Database = {
           commission_type: string
           commission_value: number | null
           created_at: string
+          drive_folder_id: string | null
+          drive_folder_name: string | null
           green_invoice_customer_id: string | null
           id: string
           mindme: boolean
@@ -192,6 +194,8 @@ export type Database = {
           commission_type?: string
           commission_value?: number | null
           created_at?: string
+          drive_folder_id?: string | null
+          drive_folder_name?: string | null
           green_invoice_customer_id?: string | null
           id?: string
           mindme?: boolean
@@ -209,6 +213,8 @@ export type Database = {
           commission_type?: string
           commission_value?: number | null
           created_at?: string
+          drive_folder_id?: string | null
+          drive_folder_name?: string | null
           green_invoice_customer_id?: string | null
           id?: string
           mindme?: boolean
