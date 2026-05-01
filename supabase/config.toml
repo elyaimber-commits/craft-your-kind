@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.green-invoice-webhook]
 verify_jwt = false
+
+[functions.transcribe-and-clean]
+verify_jwt = false

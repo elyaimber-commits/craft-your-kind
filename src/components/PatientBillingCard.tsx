@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import PartialPaymentDialog from "./PartialPaymentDialog";
 import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
+import SessionNoteRecorderDialog from "./SessionNoteRecorderDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   Trash2,
   Plus,
   FileText,
+  Mic,
 } from "lucide-react";
 
 interface Patient {
@@ -117,6 +119,7 @@ const PatientBillingCard = ({
   const [partialDialogOpen, setPartialDialogOpen] = useState(false);
   const [pendingAmount, setPendingAmount] = useState(0);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [recorderSession, setRecorderSession] = useState<Session | null>(null);
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
@@ -666,6 +669,18 @@ const PatientBillingCard = ({
                     <span className="text-muted-foreground" dir="ltr">
                       {session.date}
                     </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecorderSession(session);
+                      }}
+                      className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                      title="הקלט סיכום פגישה"
+                      aria-label="הקלט סיכום פגישה"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -916,6 +931,13 @@ const PatientBillingCard = ({
           sessionPrice: s.sessionPrice,
           isPaidPending: (s as any).isPaidPending,
         }))}
+      />
+
+      <SessionNoteRecorderDialog
+        open={!!recorderSession}
+        onOpenChange={(o) => { if (!o) setRecorderSession(null); }}
+        patientName={recorderSession?.childPatientName || billing.patient.name}
+        sessionDate={recorderSession?.date || ""}
       />
     </div>
   );
