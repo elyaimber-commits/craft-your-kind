@@ -21,6 +21,7 @@ interface Patient {
   billing_type?: string;
   parent_patient_id?: string | null;
   mindme?: boolean;
+  skip_green_invoice?: boolean;
 }
 
 interface ManualDebt {
