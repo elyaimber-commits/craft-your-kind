@@ -220,7 +220,42 @@ const SessionNoteRecorderDialog = ({
     URL.revokeObjectURL(url);
   };
 
-  return (
+  const filenameForFile = () => `${safeName(patientName)}_${safeName(sessionDate)}.txt`;
+
+  const saveToDrive = async () => {
+    if (!cleaned.trim()) return;
+    if (!driveFolderId) {
+      setFolderPickerOpen(true);
+      return;
+    }
+    setSavingToDrive(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-drive-upload", {
+        body: {
+          folderId: driveFolderId,
+          filename: filenameForFile(),
+          content: cleaned,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setSavedToDrive(true);
+      toast({
+        title: "נשמר ב-Drive ✓",
+        description: `${(data as any)?.name || filenameForFile()} → ${driveFolderName}`,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "שמירה ל-Drive נכשלה",
+        description: e?.message || "ודא שחיברת את Google מחדש לאחר עדכון ההרשאות",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingToDrive(false);
+    }
+  };
+
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent dir="rtl" className="max-w-xl">
         <DialogHeader>
