@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2, X } from "lucide-react";
 
 const WEBHOOK_URL = "https://puejfjhrinmsjvisyomh.supabase.co/functions/v1/green-invoice-webhook";
 
@@ -26,6 +26,7 @@ const MissingIdRow = ({ patient, onSaved }: { patient: { id: string; name: strin
   const { toast } = useToast();
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [hiding, setHiding] = useState(false);
 
   const save = async () => {
     const trimmed = value.trim();
@@ -48,6 +49,22 @@ const MissingIdRow = ({ patient, onSaved }: { patient: { id: string; name: strin
     onSaved();
   };
 
+  const hide = async () => {
+    if (!confirm(`להסיר את ${patient.name} מהרשימה? (לא יסונכרן עם גרין-אינבויס)`)) return;
+    setHiding(true);
+    const { error } = await supabase
+      .from("patients")
+      .update({ skip_green_invoice: true })
+      .eq("id", patient.id);
+    setHiding(false);
+    if (error) {
+      toast({ title: "שגיאה", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "הוסר מהרשימה", description: patient.name });
+    onSaved();
+  };
+
   return (
     <li className="flex items-center gap-2 px-3 py-2">
       <span className="flex-1 text-xs truncate">{patient.name}</span>
@@ -58,10 +75,20 @@ const MissingIdRow = ({ patient, onSaved }: { patient: { id: string; name: strin
         placeholder="Green Invoice ID"
         className="h-7 text-xs w-40"
         dir="ltr"
-        disabled={saving}
+        disabled={saving || hiding}
       />
-      <Button size="sm" variant="outline" className="h-7 px-2" onClick={save} disabled={saving}>
+      <Button size="sm" variant="outline" className="h-7 px-2" onClick={save} disabled={saving || hiding} title="שמור מזהה">
         {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-muted-foreground hover:text-destructive"
+        onClick={hide}
+        disabled={saving || hiding}
+        title="הסר מהרשימה"
+      >
+        {hiding ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
       </Button>
     </li>
   );
@@ -108,6 +135,7 @@ const GreenInvoiceWebhookCard = () => {
         .from("patients")
         .select("id, name")
         .is("green_invoice_customer_id", null)
+        .eq("skip_green_invoice", false)
         .order("name");
 
       const { data: lastPayment } = await supabase
