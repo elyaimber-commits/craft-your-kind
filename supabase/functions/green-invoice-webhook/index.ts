@@ -153,10 +153,9 @@ serve(async (req) => {
       });
     }
 
-    // Use the document subtotal (excl. VAT) when available, since session_price is also stored excl. VAT.
-    // Fall back to total if subtotal is missing.
-    const baseForCount = Number(payload?.subtotal) || Number(payload?.taxableTotal) || amount;
-    const sessionsCovered = Math.round(baseForCount / sessionPrice);
+    // session_price in patients table is stored as the price the therapist charges
+    // (typically incl. VAT). Use the document total (incl. VAT) to match.
+    const sessionsCovered = Math.round(amount / sessionPrice);
     console.log(`Payment covers ${sessionsCovered} sessions (base ${baseForCount} / price ${sessionPrice})`);
 
     if (sessionsCovered <= 0) {
