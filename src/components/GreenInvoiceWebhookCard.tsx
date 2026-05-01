@@ -211,7 +211,16 @@ const GreenInvoiceWebhookCard = () => {
               <div className="text-xs text-muted-foreground mt-0.5">
                 ב-24 שעות: {stats.success24h} הצליחו
                 {stats.failed24h > 0 && (
-                  <span className="text-destructive">, {stats.failed24h} נכשלו</span>
+                  <>
+                    ,{" "}
+                    <button
+                      type="button"
+                      onClick={() => { setShowOnlyFailed(true); setLogsOpen(true); refetchLogs(); }}
+                      className="text-destructive underline hover:no-underline font-medium"
+                    >
+                      {stats.failed24h} נכשלו - הצג פירוט
+                    </button>
+                  </>
                 )}
               </div>
             )}
