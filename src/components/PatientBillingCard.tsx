@@ -904,6 +904,19 @@ const PatientBillingCard = ({
           aliasNames={patientAliases}
         />
       )}
+
+      <GreenInvoiceCreateDialog
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        patient={billing.patient}
+        sessions={billing.sessions.map((s) => ({
+          date: s.date,
+          summary: s.summary,
+          eventId: s.eventId,
+          sessionPrice: s.sessionPrice,
+          isPaidPending: (s as any).isPaidPending,
+        }))}
+      />
     </div>
   );
 };
