@@ -11,17 +11,68 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Helper to log webhook calls
+  const logWebhook = async (data: {
+    status_code: number;
+    event_type?: string | null;
+    external_payment_id?: string | null;
+    matched_patient_id?: string | null;
+    therapist_id?: string | null;
+    error?: string | null;
+    payload?: unknown;
+  }) => {
+    try {
+      await supabase.from('webhook_logs').insert({
+        source: 'green_invoice',
+        status_code: data.status_code,
+        event_type: data.event_type ?? null,
+        external_payment_id: data.external_payment_id ?? null,
+        matched_patient_id: data.matched_patient_id ?? null,
+        therapist_id: data.therapist_id ?? null,
+        error: data.error ?? null,
+        payload: data.payload ?? null,
+      });
+    } catch (e) {
+      console.error('Failed to write webhook_logs:', e);
+    }
+  };
+
+  // Read body as text first to handle empty bodies (ping/handshake) gracefully
+  const rawBody = await req.text();
+  console.log(`Green Invoice webhook received. method=${req.method}, body length=${rawBody.length}`);
+
+  // Empty body = ping / health check from Morning. Respond OK.
+  if (!rawBody || rawBody.trim() === '') {
+    await logWebhook({ status_code: 200, event_type: 'ping', payload: null });
+    return new Response(JSON.stringify({ ok: true, ping: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let payload: any;
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    payload = JSON.parse(rawBody);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'invalid json';
+    console.error('Invalid JSON body:', msg, 'raw:', rawBody.slice(0, 500));
+    await logWebhook({ status_code: 400, error: `invalid_json: ${msg}`, payload: rawBody.slice(0, 1000) });
+    // Return 200 to Morning to avoid disabling the webhook, but log the error
+    return new Response(JSON.stringify({ ok: false, error: 'invalid_json' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  console.log("Green Invoice webhook payload:", JSON.stringify(payload));
+
+  try {
     const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Green Invoice sends a POST with document data
-    const payload = await req.json();
-    console.log("Green Invoice webhook received:", JSON.stringify(payload));
 
     // Extract client ID from the webhook payload
     // Green Invoice document structure has client.id
