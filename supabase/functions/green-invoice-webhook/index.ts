@@ -237,10 +237,13 @@ serve(async (req) => {
     }
     console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
 
-    // Time window: scan from 12 months ago up to today (oldest first)
+    // Time window: scan from Jan 1 of the current year (Asia/Jerusalem) up to today.
+    // Never reach back into previous years to avoid marking ancient unpaid sessions.
     const now = new Date();
-    const timeMin = new Date(now.getFullYear(), now.getMonth() - 12, 1).toISOString();
-    const timeMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    const ilYearStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric' }).format(now);
+    const ilYear = parseInt(ilYearStr);
+    const timeMin = new Date(`${ilYear}-01-01T00:00:00+02:00`).toISOString();
+    const timeMax = now.toISOString();
 
     // Fetch existing paid_event_ids across all months for these patients (to skip already-paid ones)
     const { data: existingPaidPayments } = await supabase
