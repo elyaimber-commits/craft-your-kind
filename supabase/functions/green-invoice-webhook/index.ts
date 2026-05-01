@@ -115,89 +115,21 @@ serve(async (req) => {
 
     console.log(`Found patient: ${patient.name} (${patient.id})`);
 
-    // Parse month from document description/remarks (e.g. "יעל ונר ינואר")
-    // or fall back to document date
-    const hebrewMonths: Record<string, number> = {
-      'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'אפריל': 4,
-      'מאי': 5, 'יוני': 6, 'יולי': 7, 'אוגוסט': 8,
-      'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
-    };
-
-    let month = '';
-    const description = payload?.description || payload?.remarks || payload?.comment || '';
-    console.log(`Document description: "${description}"`);
-
-    // Try to find a Hebrew month name in the description
-    for (const [monthName, monthNum] of Object.entries(hebrewMonths)) {
-      if (description.includes(monthName)) {
-        // Determine the year: if the month is in the future relative to now, use previous year
-        const now = new Date();
-        let year = now.getFullYear();
-        if (monthNum > now.getMonth() + 1) {
-          year--; // e.g., mentioning "דצמבר" in January means last year's December
-        }
-        month = `${year}-${String(monthNum).padStart(2, '0')}`;
-        console.log(`Parsed month from description: ${monthName} → ${month}`);
-        break;
-      }
-    }
-
-    // If no Hebrew month found, try numeric formats:
-    //   D/M, DD/MM, D.M, D-M (day/month) — pick the month part
-    //   M/YYYY or MM/YYYY (month/year)
-    if (!month) {
-      // Match M/YYYY first (e.g. "4/2026")
-      const monthYearMatch = description.match(/(?<![\d])(\d{1,2})[\/\.\-](\d{4})(?![\d])/);
-      if (monthYearMatch) {
-        const m = parseInt(monthYearMatch[1]);
-        const y = parseInt(monthYearMatch[2]);
-        if (m >= 1 && m <= 12) {
-          month = `${y}-${String(m).padStart(2, '0')}`;
-          console.log(`Parsed month from M/YYYY in description: ${month}`);
-        }
-      }
-      // Then D/M (e.g. "19/4")
-      if (!month) {
-        const dayMonthMatch = description.match(/(?<![\d])(\d{1,2})[\/\.\-](\d{1,2})(?![\d\/\.\-])/);
-        if (dayMonthMatch) {
-          const d = parseInt(dayMonthMatch[1]);
-          const m = parseInt(dayMonthMatch[2]);
-          if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
-            const now = new Date();
-            let year = now.getFullYear();
-            if (m > now.getMonth() + 1) {
-              year--; // future month means previous year
-            }
-            month = `${year}-${String(m).padStart(2, '0')}`;
-            console.log(`Parsed month from D/M in description: ${d}/${m} → ${month}`);
-          }
-        }
-      }
-    }
-
-    // Fallback to document date if no month found in description
-    if (!month) {
-      const docDate = payload?.documentDate || payload?.createdAt || new Date().toISOString();
-      const date = new Date(docDate);
-      month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      console.log(`Using document date for month: ${month}`);
-    }
-
     // Extract amount and receipt number from payload
-    const amount = payload?.total || 0;
+    const amount = Number(payload?.total) || 0;
     const receiptNumber = payload?.number ? String(payload.number) : null;
-    // External payment ID — prefer document id, fallback to number
     const externalPaymentId = String(payload?.id || payload?.number || `${clientId}-${Date.now()}`);
     console.log(`Payment amount: ${amount}, receipt number: ${receiptNumber}, external_payment_id: ${externalPaymentId}`);
 
-    // Check if this patient is an institution (parent) - if so, also mark children as paid
+    // Check if this patient is an institution (parent) - if so, also include children
     const { data: patientFull } = await supabase
       .from('patients')
-      .select('billing_type')
+      .select('billing_type, session_price')
       .eq('id', patient.id)
       .single();
 
     const isInstitution = patientFull?.billing_type === 'institution';
+    const sessionPrice = Number(patient.session_price) || Number(patientFull?.session_price) || 0;
 
     // Get child patients if institution
     let childPatientIds: string[] = [];
@@ -207,243 +139,328 @@ serve(async (req) => {
         .select('id, name')
         .eq('parent_patient_id', patient.id);
       childPatientIds = (children || []).map((c: any) => c.id);
-      console.log(`Institution ${patient.name} has ${childPatientIds.length} children: ${(children || []).map((c: any) => c.name).join(', ')}`);
+      console.log(`Institution ${patient.name} has ${childPatientIds.length} children`);
     }
 
-    // All patient IDs to mark as paid (parent + children for institutions)
     const allPatientIds = [patient.id, ...childPatientIds];
 
-    // We'll collect matched event IDs per patient after scanning the calendar,
-    // then update payment records with them. For now, create/update payment records.
-    // Store payment record IDs for later update with event IDs.
-    const paymentRecordIds = new Map<string, string>(); // pid -> payment id
-
-    for (const pid of allPatientIds) {
-      const { data: existingPayment } = await supabase
-        .from('payments')
-        .select('id, paid_event_ids')
-        .eq('patient_id', pid)
-        .eq('month', month)
-        .single();
-
-      const isParent = pid === patient.id;
-      if (existingPayment) {
-        const updateData: Record<string, unknown> = {
-          paid: true,
-          paid_at: new Date().toISOString(),
-          status: 'paid',
-        };
-        if (isParent) {
-          if (amount > 0) updateData.amount = amount;
-          updateData.receipt_number = receiptNumber;
-          updateData.external_source = 'green_invoice';
-          updateData.external_payment_id = externalPaymentId;
-        }
-        const { error: updErr } = await supabase
-          .from('payments')
-          .update(updateData)
-          .eq('id', existingPayment.id);
-        if (updErr) console.error(`Update payment error for ${pid}:`, updErr);
-        paymentRecordIds.set(pid, existingPayment.id);
-      } else {
-        const insertData: Record<string, unknown> = {
-          therapist_id: patient.therapist_id,
-          patient_id: pid,
-          month,
-          amount: isParent && amount > 0 ? amount : 0,
-          session_count: 0,
-          paid: true,
-          paid_at: new Date().toISOString(),
-          status: 'paid',
-          receipt_number: isParent ? receiptNumber : null,
-        };
-        if (isParent) {
-          insertData.external_source = 'green_invoice';
-          insertData.external_payment_id = externalPaymentId;
-        }
-        const { data: newPayment, error: insErr } = await supabase
-          .from('payments')
-          .insert(insertData)
-          .select('id')
-          .single();
-        if (insErr) console.error(`Insert payment error for ${pid}:`, insErr);
-        if (newPayment) paymentRecordIds.set(pid, newPayment.id);
-      }
+    // Calculate how many sessions this payment covers
+    if (sessionPrice <= 0) {
+      console.error(`Cannot calculate sessions: session_price is ${sessionPrice}`);
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalPaymentId, matched_patient_id: patient.id, therapist_id: patient.therapist_id, error: 'no_session_price', payload });
+      return new Response(JSON.stringify({ ok: true, message: "No session price set" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log(`Payment marked as paid for ${patient.name}${isInstitution ? ` + ${childPatientIds.length} children` : ''}, month ${month}`);
+    // Use the document subtotal (excl. VAT) when available, since session_price is also stored excl. VAT.
+    // Fall back to total if subtotal is missing.
+    const baseForCount = Number(payload?.subtotal) || Number(payload?.taxableTotal) || amount;
+    const sessionsCovered = Math.round(baseForCount / sessionPrice);
+    console.log(`Payment covers ${sessionsCovered} sessions (base ${baseForCount} / price ${sessionPrice})`);
 
-    // Now update Google Calendar event colors to purple (paid)
-    // Get the therapist's Google tokens
+    if (sessionsCovered <= 0) {
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalPaymentId, matched_patient_id: patient.id, therapist_id: patient.therapist_id, error: 'zero_sessions_covered', payload });
+      return new Response(JSON.stringify({ ok: true, message: "Zero sessions covered" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get Google tokens
     const { data: tokenData } = await supabase
       .from('google_tokens')
       .select('*')
       .eq('user_id', patient.therapist_id)
       .single();
 
-    if (tokenData) {
-      let accessToken = tokenData.access_token;
+    if (!tokenData) {
+      console.error('No Google tokens for therapist');
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalPaymentId, matched_patient_id: patient.id, therapist_id: patient.therapist_id, error: 'no_google_tokens', payload });
+      return new Response(JSON.stringify({ ok: true, message: "No Google tokens" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-      // Refresh token if expired
-      if (new Date(tokenData.expires_at) <= new Date()) {
-        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: GOOGLE_CLIENT_ID,
-            client_secret: GOOGLE_CLIENT_SECRET,
-            refresh_token: tokenData.refresh_token,
-            grant_type: 'refresh_token',
-          }),
+    let accessToken = tokenData.access_token;
+
+    // Refresh token if expired
+    if (new Date(tokenData.expires_at) <= new Date()) {
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: tokenData.refresh_token,
+          grant_type: 'refresh_token',
+        }),
+      });
+      const refreshData = await refreshRes.json();
+      if (refreshRes.ok) {
+        accessToken = refreshData.access_token;
+        const newExpiresAt = new Date(Date.now() + (refreshData.expires_in || 3600) * 1000).toISOString();
+        await supabase
+          .from('google_tokens')
+          .update({ access_token: accessToken, expires_at: newExpiresAt })
+          .eq('user_id', patient.therapist_id);
+      } else {
+        console.error("Failed to refresh Google token:", refreshData);
+      }
+    }
+
+    // Build alias name set (patient + children + aliases)
+    const aliasNames = new Set<string>([patient.name.trim().toLowerCase()]);
+    const { data: aliasData } = await supabase
+      .from('event_aliases')
+      .select('event_name, patient_id')
+      .in('patient_id', allPatientIds);
+    const aliasToPatient = new Map<string, string>();
+    aliasToPatient.set(patient.name.trim().toLowerCase(), patient.id);
+    if (aliasData) {
+      for (const a of aliasData) {
+        const key = a.event_name.trim().toLowerCase();
+        aliasNames.add(key);
+        aliasToPatient.set(key, a.patient_id);
+      }
+    }
+    if (isInstitution) {
+      const { data: childPatients } = await supabase
+        .from('patients')
+        .select('id, name')
+        .in('id', childPatientIds);
+      if (childPatients) {
+        for (const c of childPatients) {
+          const key = c.name.trim().toLowerCase();
+          aliasNames.add(key);
+          aliasToPatient.set(key, c.id);
+        }
+      }
+    }
+    console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
+
+    // Time window: scan from 12 months ago up to today (oldest first)
+    const now = new Date();
+    const timeMin = new Date(now.getFullYear(), now.getMonth() - 12, 1).toISOString();
+    const timeMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+    // Fetch existing paid_event_ids across all months for these patients (to skip already-paid ones)
+    const { data: existingPaidPayments } = await supabase
+      .from('payments')
+      .select('paid_event_ids')
+      .in('patient_id', allPatientIds);
+    const alreadyPaidEventIds = new Set<string>();
+    if (existingPaidPayments) {
+      for (const p of existingPaidPayments) {
+        for (const id of (p.paid_event_ids || []) as string[]) {
+          alreadyPaidEventIds.add(id);
+        }
+      }
+    }
+
+    // Get ignored events
+    const { data: ignoredData } = await supabase
+      .from('ignored_calendar_events')
+      .select('event_name')
+      .eq('therapist_id', patient.therapist_id);
+    const ignoredNames = new Set<string>((ignoredData || []).map((i: any) => i.event_name.trim().toLowerCase()));
+
+    // Get all calendars
+    const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const calListData = await calListRes.json();
+    const calendars = calListData.items || [];
+
+    // Collect all matching events across calendars
+    type CandidateEvent = {
+      calendarId: string;
+      eventId: string;
+      summary: string;
+      startISO: string;
+      colorId?: string;
+      patientId: string;
+    };
+    const candidates: CandidateEvent[] = [];
+
+    for (const cal of calendars) {
+      const eventsRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
+        `timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=2500&orderBy=startTime`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const eventsData = await eventsRes.json();
+      const events = eventsData.items || [];
+
+      for (const e of events) {
+        const summary = (e.summary || "").trim();
+        const summaryLower = summary.toLowerCase();
+        if (!aliasNames.has(summaryLower)) continue;
+        if (ignoredNames.has(summaryLower)) continue;
+        // Skip already-paid (purple=3) and cancelled (flamingo=4)
+        if (e.colorId === "3" || e.colorId === "4") continue;
+        // Skip if event is in alreadyPaidEventIds
+        if (alreadyPaidEventIds.has(e.id)) continue;
+        const startISO = e.start?.dateTime || e.start?.date;
+        if (!startISO) continue;
+        // Only past events (don't sweep future ones)
+        if (new Date(startISO) > now) continue;
+
+        const pid = aliasToPatient.get(summaryLower) || patient.id;
+        candidates.push({
+          calendarId: cal.id,
+          eventId: e.id,
+          summary,
+          startISO,
+          colorId: e.colorId,
+          patientId: pid,
         });
+      }
+    }
 
-        const refreshData = await refreshRes.json();
-        if (refreshRes.ok) {
-          accessToken = refreshData.access_token;
-          const newExpiresAt = new Date(Date.now() + (refreshData.expires_in || 3600) * 1000).toISOString();
-          await supabase
-            .from('google_tokens')
-            .update({ access_token: accessToken, expires_at: newExpiresAt })
-            .eq('user_id', patient.therapist_id);
+    // Sort oldest first
+    candidates.sort((a, b) => a.startISO.localeCompare(b.startISO));
+    console.log(`Found ${candidates.length} unpaid past events; will mark ${Math.min(sessionsCovered, candidates.length)}`);
+
+    // Take the oldest N sessions
+    const toMark = candidates.slice(0, sessionsCovered);
+
+    // Group by month (Asia/Jerusalem) → patient → event ids
+    const monthFmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric',
+      month: '2-digit',
+    });
+    const grouped = new Map<string, Map<string, string[]>>(); // month -> pid -> [eventIds]
+    for (const ev of toMark) {
+      const parts = monthFmt.formatToParts(new Date(ev.startISO));
+      const y = parts.find(p => p.type === 'year')?.value || '0000';
+      const m = parts.find(p => p.type === 'month')?.value || '00';
+      const monthKey = `${y}-${m}`;
+      if (!grouped.has(monthKey)) grouped.set(monthKey, new Map());
+      const pidMap = grouped.get(monthKey)!;
+      if (!pidMap.has(ev.patientId)) pidMap.set(ev.patientId, []);
+      pidMap.get(ev.patientId)!.push(ev.eventId);
+    }
+
+    // Patch calendar events to purple
+    let colorUpdated = 0;
+    for (const ev of toMark) {
+      const patchRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(ev.calendarId)}/events/${encodeURIComponent(ev.eventId)}`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ colorId: "3" }),
+        }
+      );
+      if (patchRes.ok) colorUpdated++;
+      else console.error(`Failed to patch event ${ev.eventId}:`, await patchRes.text());
+    }
+    console.log(`Updated ${colorUpdated} calendar events to purple`);
+
+    // Update payment records per month
+    // The payment record holding the receipt/external_payment_id goes on the LATEST month touched
+    // (or the document month if no events were matched).
+    const sortedMonths = [...grouped.keys()].sort();
+    const receiptMonth = sortedMonths.length > 0
+      ? sortedMonths[sortedMonths.length - 1]
+      : (() => {
+          const docDate = payload?.documentDate || payload?.createdAt || new Date().toISOString();
+          const d = new Date(docDate);
+          const parts = monthFmt.formatToParts(d);
+          const y = parts.find(p => p.type === 'year')?.value || '0000';
+          const m = parts.find(p => p.type === 'month')?.value || '00';
+          return `${y}-${m}`;
+        })();
+
+    for (const [monthKey, pidMap] of grouped.entries()) {
+      for (const [pid, eventIds] of pidMap.entries()) {
+        const isParent = pid === patient.id;
+        const isReceiptMonth = monthKey === receiptMonth;
+
+        const { data: existingPayment } = await supabase
+          .from('payments')
+          .select('id, paid_event_ids, amount')
+          .eq('patient_id', pid)
+          .eq('month', monthKey)
+          .maybeSingle();
+
+        if (existingPayment) {
+          const mergedIds = new Set<string>([...((existingPayment.paid_event_ids || []) as string[]), ...eventIds]);
+          const updateData: Record<string, unknown> = {
+            paid_event_ids: Array.from(mergedIds),
+            session_count: mergedIds.size,
+            paid: true,
+            paid_at: new Date().toISOString(),
+            status: 'paid',
+          };
+          if (isParent && isReceiptMonth) {
+            if (amount > 0) updateData.amount = amount;
+            updateData.receipt_number = receiptNumber;
+            updateData.external_source = 'green_invoice';
+            updateData.external_payment_id = externalPaymentId;
+          }
+          const { error: updErr } = await supabase
+            .from('payments')
+            .update(updateData)
+            .eq('id', existingPayment.id);
+          if (updErr) console.error(`Update payment error for ${pid}/${monthKey}:`, updErr);
         } else {
-          console.error("Failed to refresh Google token:", refreshData);
+          const insertData: Record<string, unknown> = {
+            therapist_id: patient.therapist_id,
+            patient_id: pid,
+            month: monthKey,
+            amount: isParent && isReceiptMonth && amount > 0 ? amount : 0,
+            session_count: eventIds.length,
+            paid_event_ids: eventIds,
+            paid: true,
+            paid_at: new Date().toISOString(),
+            status: 'paid',
+            receipt_number: isParent && isReceiptMonth ? receiptNumber : null,
+          };
+          if (isParent && isReceiptMonth) {
+            insertData.external_source = 'green_invoice';
+            insertData.external_payment_id = externalPaymentId;
+          }
+          const { error: insErr } = await supabase
+            .from('payments')
+            .insert(insertData);
+          if (insErr) console.error(`Insert payment error for ${pid}/${monthKey}:`, insErr);
         }
+        console.log(`Updated payment for patient ${pid} month ${monthKey} with ${eventIds.length} event IDs${isParent && isReceiptMonth ? ' (receipt month)' : ''}`);
       }
+    }
 
-      if (accessToken) {
-        // Find yellow events matching this patient's name in the target month
-        const [yearStr, monthStr] = month.split('-');
-        const monthYear = parseInt(yearStr);
-        const monthIdx = parseInt(monthStr) - 1;
-        const startOfMonth = new Date(monthYear, monthIdx, 1).toISOString();
-        const endOfMonth = new Date(monthYear, monthIdx + 1, 0, 23, 59, 59).toISOString();
-
-        // Get all calendars
-        const calListRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-          headers: { Authorization: `Bearer ${accessToken}` },
+    // If no events were matched, still record the payment on the document month so it's not lost
+    if (sortedMonths.length === 0) {
+      const isParent = true;
+      const { data: existingPayment } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('patient_id', patient.id)
+        .eq('month', receiptMonth)
+        .maybeSingle();
+      const baseData: Record<string, unknown> = {
+        amount,
+        receipt_number: receiptNumber,
+        external_source: 'green_invoice',
+        external_payment_id: externalPaymentId,
+        paid: true,
+        paid_at: new Date().toISOString(),
+        status: 'paid',
+      };
+      if (existingPayment) {
+        await supabase.from('payments').update(baseData).eq('id', existingPayment.id);
+      } else {
+        await supabase.from('payments').insert({
+          therapist_id: patient.therapist_id,
+          patient_id: patient.id,
+          month: receiptMonth,
+          session_count: 0,
+          ...baseData,
         });
-        const calListData = await calListRes.json();
-        const calendars = calListData.items || [];
-
-        const patientNameLower = patient.name.trim().toLowerCase();
-        let colorUpdated = 0;
-
-        // Get aliases for this patient (and children if institution) to match calendar events
-        const aliasPatientIds = [patient.id, ...childPatientIds];
-        const { data: aliasData } = await supabase
-          .from('event_aliases')
-          .select('event_name')
-          .in('patient_id', aliasPatientIds);
-        
-        const aliasNames = new Set<string>([patientNameLower]);
-        if (aliasData) {
-          for (const a of aliasData) {
-            aliasNames.add(a.event_name.trim().toLowerCase());
-          }
-        }
-
-        // Also add child patient names
-        if (isInstitution) {
-          const { data: childPatients } = await supabase
-            .from('patients')
-            .select('name')
-            .in('id', childPatientIds);
-          if (childPatients) {
-            for (const c of childPatients) {
-              aliasNames.add(c.name.trim().toLowerCase());
-            }
-          }
-        }
-
-        console.log(`Matching names for ${patient.name}:`, [...aliasNames]);
-
-        const matchedEventsByPatient = new Map<string, string[]>();
-
-        for (const cal of calendars) {
-          const eventsRes = await fetch(
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?` +
-            `timeMin=${encodeURIComponent(startOfMonth)}&timeMax=${encodeURIComponent(endOfMonth)}&singleEvents=true&maxResults=250`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          const eventsData = await eventsRes.json();
-          const events = eventsData.items || [];
-
-          // Find events matching patient name OR any alias
-          // Match yellow (5 = summary written) OR default (no color = before summary) events
-          // Skip purple (3 = already paid) and flamingo (4 = cancelled)
-          const matchingEvents = events.filter((e: any) => {
-            const nameMatch = aliasNames.has((e.summary || "").trim().toLowerCase());
-            if (!nameMatch) return false;
-            const color = e.colorId;
-            // Skip already-paid (purple=3) and cancelled (flamingo=4)
-            if (color === "3" || color === "4") return false;
-            return true;
-          });
-
-          for (const event of matchingEvents) {
-            const patchRes = await fetch(
-              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events/${encodeURIComponent(event.id)}`,
-              {
-                method: 'PATCH',
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ colorId: "3" }), // Purple = paid
-              }
-            );
-            if (patchRes.ok) {
-              colorUpdated++;
-              // Track which patient this event belongs to for paid_event_ids
-              const eventName = (event.summary || "").trim().toLowerCase();
-              for (const pid of allPatientIds) {
-                // Check if this event matches this patient
-                const pName = pid === patient.id ? patientNameLower : null;
-                if (pName && eventName === pName) {
-                  if (!matchedEventsByPatient.has(pid)) matchedEventsByPatient.set(pid, []);
-                  matchedEventsByPatient.get(pid)!.push(event.id);
-                  break;
-                }
-                // Check aliases
-                if (aliasNames.has(eventName)) {
-                  if (!matchedEventsByPatient.has(pid)) matchedEventsByPatient.set(pid, []);
-                  matchedEventsByPatient.get(pid)!.push(event.id);
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        console.log(`Updated ${colorUpdated} calendar events to purple for ${patient.name}`);
-
-        // Update payment records with matched event IDs
-        for (const [pid, eventIds] of matchedEventsByPatient.entries()) {
-          const paymentId = paymentRecordIds.get(pid);
-          if (paymentId && eventIds.length > 0) {
-            // Get existing paid_event_ids to merge
-            const { data: existingPayment } = await supabase
-              .from('payments')
-              .select('paid_event_ids')
-              .eq('id', paymentId)
-              .single();
-            
-            const existingIds = new Set((existingPayment?.paid_event_ids || []) as string[]);
-            eventIds.forEach(id => existingIds.add(id));
-            const allEventIds = Array.from(existingIds);
-
-            await supabase
-              .from('payments')
-              .update({
-                paid_event_ids: allEventIds,
-                session_count: allEventIds.length,
-              })
-              .eq('id', paymentId);
-            
-            console.log(`Updated payment for patient ${pid} with ${allEventIds.length} event IDs`);
-          }
-        }
       }
+      console.log(`No matching events; recorded payment on ${receiptMonth} only`);
     }
 
     await logWebhook({
