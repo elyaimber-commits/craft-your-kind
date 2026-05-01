@@ -98,7 +98,9 @@ serve(async (req) => {
     // Extract amount and receipt number from payload
     const amount = payload?.total || 0;
     const receiptNumber = payload?.number ? String(payload.number) : null;
-    console.log(`Payment amount: ${amount}, receipt number: ${receiptNumber}`);
+    // External payment ID — prefer document id, fallback to number
+    const externalPaymentId = String(payload?.id || payload?.number || `${clientId}-${Date.now()}`);
+    console.log(`Payment amount: ${amount}, receipt number: ${receiptNumber}, external_payment_id: ${externalPaymentId}`);
 
     // Check if this patient is an institution (parent) - if so, also mark children as paid
     const { data: patientFull } = await supabase
@@ -136,32 +138,47 @@ serve(async (req) => {
         .eq('month', month)
         .single();
 
+      const isParent = pid === patient.id;
       if (existingPayment) {
-        await supabase
+        const updateData: Record<string, unknown> = {
+          paid: true,
+          paid_at: new Date().toISOString(),
+          status: 'paid',
+        };
+        if (isParent) {
+          if (amount > 0) updateData.amount = amount;
+          updateData.receipt_number = receiptNumber;
+          updateData.external_source = 'green_invoice';
+          updateData.external_payment_id = externalPaymentId;
+        }
+        const { error: updErr } = await supabase
           .from('payments')
-          .update({
-            paid: true,
-            paid_at: new Date().toISOString(),
-            amount: pid === patient.id && amount > 0 ? amount : undefined,
-            receipt_number: pid === patient.id ? receiptNumber : undefined,
-          })
+          .update(updateData)
           .eq('id', existingPayment.id);
+        if (updErr) console.error(`Update payment error for ${pid}:`, updErr);
         paymentRecordIds.set(pid, existingPayment.id);
       } else {
-        const { data: newPayment } = await supabase
+        const insertData: Record<string, unknown> = {
+          therapist_id: patient.therapist_id,
+          patient_id: pid,
+          month,
+          amount: isParent && amount > 0 ? amount : 0,
+          session_count: 0,
+          paid: true,
+          paid_at: new Date().toISOString(),
+          status: 'paid',
+          receipt_number: isParent ? receiptNumber : null,
+        };
+        if (isParent) {
+          insertData.external_source = 'green_invoice';
+          insertData.external_payment_id = externalPaymentId;
+        }
+        const { data: newPayment, error: insErr } = await supabase
           .from('payments')
-          .insert({
-            therapist_id: patient.therapist_id,
-            patient_id: pid,
-            month,
-            amount: pid === patient.id && amount > 0 ? amount : 0,
-            session_count: 0,
-            paid: true,
-            paid_at: new Date().toISOString(),
-            receipt_number: pid === patient.id ? receiptNumber : null,
-          })
+          .insert(insertData)
           .select('id')
           .single();
+        if (insErr) console.error(`Insert payment error for ${pid}:`, insErr);
         if (newPayment) paymentRecordIds.set(pid, newPayment.id);
       }
     }
