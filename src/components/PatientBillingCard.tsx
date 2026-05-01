@@ -116,6 +116,7 @@ const PatientBillingCard = ({
   const [savingExtra, setSavingExtra] = useState(false);
   const [partialDialogOpen, setPartialDialogOpen] = useState(false);
   const [pendingAmount, setPendingAmount] = useState(0);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
