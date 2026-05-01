@@ -99,6 +99,7 @@ const GreenInvoiceWebhookCard = () => {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [showOnlyFailed, setShowOnlyFailed] = useState(false);
 
   const { data: stats } = useQuery({
     queryKey: ["green-invoice-stats-v2"],
