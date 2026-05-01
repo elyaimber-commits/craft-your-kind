@@ -156,7 +156,7 @@ serve(async (req) => {
     // session_price in patients table is stored as the price the therapist charges
     // (typically incl. VAT). Use the document total (incl. VAT) to match.
     const sessionsCovered = Math.round(amount / sessionPrice);
-    console.log(`Payment covers ${sessionsCovered} sessions (base ${baseForCount} / price ${sessionPrice})`);
+    console.log(`Payment covers ${sessionsCovered} sessions (amount ${amount} / price ${sessionPrice})`);
 
     if (sessionsCovered <= 0) {
       await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalPaymentId, matched_patient_id: patient.id, therapist_id: patient.therapist_id, error: 'zero_sessions_covered', payload });
