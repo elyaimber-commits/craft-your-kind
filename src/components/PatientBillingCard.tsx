@@ -936,8 +936,15 @@ const PatientBillingCard = ({
       <SessionNoteRecorderDialog
         open={!!recorderSession}
         onOpenChange={(o) => { if (!o) setRecorderSession(null); }}
+        patientId={billing.patient.id}
         patientName={recorderSession?.childPatientName || billing.patient.name}
         sessionDate={recorderSession?.date || ""}
+        driveFolderId={(billing.patient as any).drive_folder_id || null}
+        driveFolderName={(billing.patient as any).drive_folder_name || null}
+        onFolderUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["patients"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+        }}
       />
     </div>
   );
