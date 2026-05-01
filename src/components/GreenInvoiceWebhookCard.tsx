@@ -346,37 +346,6 @@ const GreenInvoiceWebhookCard = () => {
             </div>
           </DialogContent>
         </Dialog>
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium">{formatDate(log.received_at)}</div>
-                      <Badge variant={log.error ? "destructive" : "default"} className="text-xs">
-                        {log.status_code} {log.event_type ? `· ${log.event_type}` : ""}
-                      </Badge>
-                    </div>
-                    {log.external_payment_id && (
-                      <div className="text-muted-foreground">
-                        מזהה מסמך: {log.external_payment_id}
-                      </div>
-                    )}
-                    {log.error && (
-                      <div className="text-destructive">שגיאה: {log.error}</div>
-                    )}
-                    {log.payload && (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                          הצג Payload
-                        </summary>
-                        <pre className="mt-1 overflow-auto rounded bg-muted p-2 text-[10px]" dir="ltr">
-                          {JSON.stringify(log.payload, null, 2)}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Missing IDs section */}
         {stats && stats.missingIds.length > 0 && (
