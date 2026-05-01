@@ -316,10 +316,10 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       for (const billing of billingData) {
         const existingPayment = payments.find((p) => p.patient_id === billing.patient.id);
 
-        // Find purple (paid) sessions
+        // Find paid sessions (purple = paid w/ invoice, orange = paid pending invoice)
         const purpleSessions = billing.sessions.filter((s) => {
           const event = events.find((e) => e.id === s.eventId);
-          return event?.colorId === "3" && s.eventId;
+          return (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID) && s.eventId;
         });
 
         const existingPaidIds = new Set((existingPayment as any)?.paid_event_ids || []);
