@@ -11,23 +11,77 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Helper to log webhook calls
+  const logWebhook = async (data: {
+    status_code: number;
+    event_type?: string | null;
+    external_payment_id?: string | null;
+    matched_patient_id?: string | null;
+    therapist_id?: string | null;
+    error?: string | null;
+    payload?: unknown;
+  }) => {
+    try {
+      await supabase.from('webhook_logs').insert({
+        source: 'green_invoice',
+        status_code: data.status_code,
+        event_type: data.event_type ?? null,
+        external_payment_id: data.external_payment_id ?? null,
+        matched_patient_id: data.matched_patient_id ?? null,
+        therapist_id: data.therapist_id ?? null,
+        error: data.error ?? null,
+        payload: data.payload ?? null,
+      });
+    } catch (e) {
+      console.error('Failed to write webhook_logs:', e);
+    }
+  };
+
+  // Read body as text first to handle empty bodies (ping/handshake) gracefully
+  const rawBody = await req.text();
+  console.log(`Green Invoice webhook received. method=${req.method}, body length=${rawBody.length}`);
+
+  // Empty body = ping / health check from Morning. Respond OK.
+  if (!rawBody || rawBody.trim() === '') {
+    await logWebhook({ status_code: 200, event_type: 'ping', payload: null });
+    return new Response(JSON.stringify({ ok: true, ping: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let payload: any;
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    payload = JSON.parse(rawBody);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'invalid json';
+    console.error('Invalid JSON body:', msg, 'raw:', rawBody.slice(0, 500));
+    await logWebhook({ status_code: 400, error: `invalid_json: ${msg}`, payload: rawBody.slice(0, 1000) });
+    // Return 200 to Morning to avoid disabling the webhook, but log the error
+    return new Response(JSON.stringify({ ok: false, error: 'invalid_json' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  console.log("Green Invoice webhook payload:", JSON.stringify(payload));
+
+  try {
     const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Green Invoice sends a POST with document data
-    const payload = await req.json();
-    console.log("Green Invoice webhook received:", JSON.stringify(payload));
+    const docType = payload?.type;
+    const externalIdEarly = payload?.id ? String(payload.id) : (payload?.number ? String(payload.number) : null);
 
     // Extract client ID from the webhook payload
-    // Green Invoice document structure has client.id
     const clientId = payload?.recipient?.id || payload?.client?.id;
     if (!clientId) {
       console.log("No client ID in webhook payload, ignoring");
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : 'unknown', external_payment_id: externalIdEarly, error: 'no_client_id', payload });
       return new Response(JSON.stringify({ ok: true, message: "No client ID, ignored" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -36,9 +90,9 @@ serve(async (req) => {
     // Document types that indicate payment: 
     // 320 = receipt, 305 = invoice+receipt, 400 = receipt
     const paymentDocTypes = [320, 305, 400];
-    const docType = payload?.type;
     if (docType && !paymentDocTypes.includes(docType)) {
       console.log(`Document type ${docType} is not a payment document, ignoring`);
+      await logWebhook({ status_code: 200, event_type: String(docType), external_payment_id: externalIdEarly, error: 'not_payment_doc', payload });
       return new Response(JSON.stringify({ ok: true, message: "Not a payment document" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -53,6 +107,7 @@ serve(async (req) => {
 
     if (patientError || !patient) {
       console.log(`No patient found for Green Invoice client ID: ${clientId}`);
+      await logWebhook({ status_code: 200, event_type: docType ? String(docType) : null, external_payment_id: externalIdEarly, error: `no_patient_for_client_id:${clientId}`, payload });
       return new Response(JSON.stringify({ ok: true, message: "No matching patient found" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -358,14 +413,31 @@ serve(async (req) => {
       }
     }
 
+    await logWebhook({
+      status_code: 200,
+      event_type: docType ? String(docType) : null,
+      external_payment_id: externalPaymentId,
+      matched_patient_id: patient.id,
+      therapist_id: patient.therapist_id,
+      payload,
+    });
+
     return new Response(JSON.stringify({ ok: true, message: "Payment processed" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Webhook error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+    await logWebhook({
+      status_code: 500,
+      event_type: payload?.type ? String(payload.type) : null,
+      external_payment_id: payload?.id ? String(payload.id) : null,
+      error: message,
+      payload,
+    });
+    // Return 200 so Morning doesn't disable the webhook; we logged the error
+    return new Response(JSON.stringify({ ok: false, error: message }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

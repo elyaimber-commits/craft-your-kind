@@ -333,6 +333,48 @@ export type Database = {
           },
         ]
       }
+      webhook_logs: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_type: string | null
+          external_payment_id: string | null
+          id: string
+          matched_patient_id: string | null
+          payload: Json | null
+          received_at: string
+          source: string
+          status_code: number
+          therapist_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          external_payment_id?: string | null
+          id?: string
+          matched_patient_id?: string | null
+          payload?: Json | null
+          received_at?: string
+          source: string
+          status_code: number
+          therapist_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          external_payment_id?: string | null
+          id?: string
+          matched_patient_id?: string | null
+          payload?: Json | null
+          received_at?: string
+          source?: string
+          status_code?: number
+          therapist_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
