@@ -299,12 +299,16 @@ const GreenInvoiceWebhookCard = () => {
             <div className="text-xs text-muted-foreground mb-2">
               חשבוניות עבור המטופלים הבאים לא יסונכרנו אוטומטית:
             </div>
-            <div className="max-h-48 overflow-y-auto rounded bg-background/50 border">
+            <div className="max-h-72 overflow-y-auto rounded bg-background/50 border">
               <ul className="divide-y">
                 {stats.missingIds.map((p) => (
-                  <li key={p.id} className="px-3 py-1.5 text-xs">
-                    {p.name}
-                  </li>
+                  <MissingIdRow
+                    key={p.id}
+                    patient={p}
+                    onSaved={() => {
+                      queryClient.invalidateQueries({ queryKey: ["green-invoice-stats-v2"] });
+                    }}
+                  />
                 ))}
               </ul>
             </div>
