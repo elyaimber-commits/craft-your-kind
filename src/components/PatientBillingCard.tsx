@@ -41,6 +41,7 @@ interface Session {
   childPatientName?: string;
   sessionPrice?: number;
   startISO?: string;
+  isPaidPending?: boolean;
 }
 
 interface PatientBilling {
