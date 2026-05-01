@@ -20,3 +20,10 @@ verify_jwt = false
 
 [functions.transcribe-and-clean]
 verify_jwt = false
+
+[functions.google-drive-folders]
+verify_jwt = false
+
+[functions.google-drive-upload]
+verify_jwt = false
+

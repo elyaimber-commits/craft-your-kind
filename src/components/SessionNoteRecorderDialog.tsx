@@ -4,13 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Mic, Square, Play, RotateCcw, Loader2, Download, Sparkles } from "lucide-react";
+import { Mic, Square, RotateCcw, Loader2, Download, Sparkles, Cloud, FolderCog } from "lucide-react";
+import DriveFolderPickerDialog from "./DriveFolderPickerDialog";
 
 interface SessionNoteRecorderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  patientId: string;
   patientName: string;
   sessionDate: string; // display, e.g. "5/4/26"
+  driveFolderId?: string | null;
+  driveFolderName?: string | null;
+  onFolderUpdated?: (folderId: string, folderName: string) => void;
 }
 
 type Phase = "idle" | "recording" | "recorded" | "processing" | "done";
@@ -39,14 +44,21 @@ function formatTime(s: number) {
 const SessionNoteRecorderDialog = ({
   open,
   onOpenChange,
+  patientId,
   patientName,
   sessionDate,
+  driveFolderId,
+  driveFolderName,
+  onFolderUpdated,
 }: SessionNoteRecorderDialogProps) => {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [cleaned, setCleaned] = useState("");
+  const [savingToDrive, setSavingToDrive] = useState(false);
+  const [savedToDrive, setSavedToDrive] = useState(false);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -208,7 +220,44 @@ const SessionNoteRecorderDialog = ({
     URL.revokeObjectURL(url);
   };
 
+  const filenameForFile = () => `${safeName(patientName)}_${safeName(sessionDate)}.txt`;
+
+  const saveToDrive = async () => {
+    if (!cleaned.trim()) return;
+    if (!driveFolderId) {
+      setFolderPickerOpen(true);
+      return;
+    }
+    setSavingToDrive(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("google-drive-upload", {
+        body: {
+          folderId: driveFolderId,
+          filename: filenameForFile(),
+          content: cleaned,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setSavedToDrive(true);
+      toast({
+        title: "נשמר ב-Drive ✓",
+        description: `${(data as any)?.name || filenameForFile()} → ${driveFolderName}`,
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "שמירה ל-Drive נכשלה",
+        description: e?.message || "ודא שחיברת את Google מחדש לאחר עדכון ההרשאות",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingToDrive(false);
+    }
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent dir="rtl" className="max-w-xl">
         <DialogHeader>
@@ -263,25 +312,47 @@ const SessionNoteRecorderDialog = ({
         {/* Result */}
         {phase === "done" && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              ניתן לערוך את הטקסט לפני ההורדה. האודיו נמחק.
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm text-muted-foreground">
+                ניתן לערוך את הטקסט לפני השמירה. האודיו נמחק.
+              </p>
+              <button
+                type="button"
+                onClick={() => setFolderPickerOpen(true)}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <FolderCog className="h-3 w-3" />
+                {driveFolderName ? `תיקייה: ${driveFolderName}` : "הגדר תיקיית Drive"}
+              </button>
+            </div>
             <Textarea
               value={cleaned}
-              onChange={(e) => setCleaned(e.target.value)}
+              onChange={(e) => { setCleaned(e.target.value); setSavedToDrive(false); }}
               className="min-h-[300px] text-base leading-relaxed"
               dir="rtl"
             />
-            <div className="flex justify-between">
+            <div className="flex justify-between flex-wrap gap-2">
               <Button variant="outline" onClick={reset} className="gap-2">
                 <RotateCcw className="h-4 w-4" /> הקלטה חדשה
               </Button>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   סגור
                 </Button>
-                <Button onClick={downloadTxt} disabled={!cleaned.trim()} className="gap-2">
-                  <Download className="h-4 w-4" /> הורד כ-TXT
+                <Button variant="outline" onClick={downloadTxt} disabled={!cleaned.trim()} className="gap-2">
+                  <Download className="h-4 w-4" /> הורד
+                </Button>
+                <Button
+                  onClick={saveToDrive}
+                  disabled={!cleaned.trim() || savingToDrive}
+                  className="gap-2"
+                >
+                  {savingToDrive ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Cloud className="h-4 w-4" />
+                  )}
+                  {savedToDrive ? "נשמר ✓" : driveFolderId ? "שמור ל-Drive" : "בחר תיקייה ושמור"}
                 </Button>
               </div>
             </div>
@@ -289,6 +360,24 @@ const SessionNoteRecorderDialog = ({
         )}
       </DialogContent>
     </Dialog>
+
+    <DriveFolderPickerDialog
+      open={folderPickerOpen}
+      onOpenChange={setFolderPickerOpen}
+      patientId={patientId}
+      patientName={patientName}
+      currentFolderId={driveFolderId}
+      currentFolderName={driveFolderName}
+      onSaved={(fid, fname) => {
+        onFolderUpdated?.(fid, fname);
+        // If we have content and just picked a folder, save right away
+        if (fid && cleaned.trim()) {
+          // small delay so the parent prop updates propagate
+          setTimeout(() => saveToDrive(), 100);
+        }
+      }}
+    />
+    </>
   );
 };
 
