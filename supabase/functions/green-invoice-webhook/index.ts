@@ -142,6 +142,39 @@ serve(async (req) => {
       }
     }
 
+    // If no Hebrew month found, try numeric formats:
+    //   D/M, DD/MM, D.M, D-M (day/month) — pick the month part
+    //   M/YYYY or MM/YYYY (month/year)
+    if (!month) {
+      // Match M/YYYY first (e.g. "4/2026")
+      const monthYearMatch = description.match(/(?<![\d])(\d{1,2})[\/\.\-](\d{4})(?![\d])/);
+      if (monthYearMatch) {
+        const m = parseInt(monthYearMatch[1]);
+        const y = parseInt(monthYearMatch[2]);
+        if (m >= 1 && m <= 12) {
+          month = `${y}-${String(m).padStart(2, '0')}`;
+          console.log(`Parsed month from M/YYYY in description: ${month}`);
+        }
+      }
+      // Then D/M (e.g. "19/4")
+      if (!month) {
+        const dayMonthMatch = description.match(/(?<![\d])(\d{1,2})[\/\.\-](\d{1,2})(?![\d\/\.\-])/);
+        if (dayMonthMatch) {
+          const d = parseInt(dayMonthMatch[1]);
+          const m = parseInt(dayMonthMatch[2]);
+          if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+            const now = new Date();
+            let year = now.getFullYear();
+            if (m > now.getMonth() + 1) {
+              year--; // future month means previous year
+            }
+            month = `${year}-${String(m).padStart(2, '0')}`;
+            console.log(`Parsed month from D/M in description: ${d}/${m} → ${month}`);
+          }
+        }
+      }
+    }
+
     // Fallback to document date if no month found in description
     if (!month) {
       const docDate = payload?.documentDate || payload?.createdAt || new Date().toISOString();
