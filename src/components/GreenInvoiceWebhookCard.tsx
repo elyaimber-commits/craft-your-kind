@@ -5,26 +5,58 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CheckCircle2, AlertCircle, Receipt } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock } from "lucide-react";
 
 const WEBHOOK_URL = "https://puejfjhrinmsjvisyomh.supabase.co/functions/v1/green-invoice-webhook";
+
+const formatDate = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" });
+};
 
 const GreenInvoiceWebhookCard = () => {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   const { data: stats } = useQuery({
-    queryKey: ["green-invoice-stats"],
+    queryKey: ["green-invoice-stats-v2"],
     queryFn: async () => {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-      const { count: webhookCount } = await supabase
-        .from("payments")
+      // Recent webhook logs (any call from Morning)
+      const { count: recentLogsCount } = await supabase
+        .from("webhook_logs")
         .select("*", { count: "exact", head: true })
-        .eq("external_source", "green_invoice")
-        .gte("created_at", thirtyDaysAgo.toISOString());
+        .eq("source", "green_invoice")
+        .gte("received_at", sevenDaysAgo.toISOString());
+
+      // Failed/error logs in last 24h
+      const { count: failed24h } = await supabase
+        .from("webhook_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("source", "green_invoice")
+        .gte("received_at", oneDayAgo.toISOString())
+        .not("error", "is", null);
+
+      // Successful (no error) logs in last 24h
+      const { count: success24h } = await supabase
+        .from("webhook_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("source", "green_invoice")
+        .gte("received_at", oneDayAgo.toISOString())
+        .is("error", null);
 
       const { data: missingIds } = await supabase
         .from("patients")
@@ -40,12 +72,37 @@ const GreenInvoiceWebhookCard = () => {
         .limit(1)
         .maybeSingle();
 
+      const { data: lastLog } = await supabase
+        .from("webhook_logs")
+        .select("received_at, status_code, error")
+        .eq("source", "green_invoice")
+        .order("received_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       return {
-        webhookCount: webhookCount || 0,
+        recentLogsCount: recentLogsCount || 0,
+        failed24h: failed24h || 0,
+        success24h: success24h || 0,
         missingIds: missingIds || [],
         lastPayment,
+        lastLog,
       };
     },
+  });
+
+  const { data: logs, refetch: refetchLogs } = useQuery({
+    queryKey: ["webhook-logs"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("webhook_logs")
+        .select("*")
+        .eq("source", "green_invoice")
+        .order("received_at", { ascending: false })
+        .limit(20);
+      return data || [];
+    },
+    enabled: logsOpen,
   });
 
   const copyUrl = async () => {
@@ -55,7 +112,7 @@ const GreenInvoiceWebhookCard = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isWorking = (stats?.webhookCount ?? 0) > 0;
+  const isWorking = (stats?.recentLogsCount ?? 0) > 0;
 
   return (
     <Card>
@@ -68,16 +125,33 @@ const GreenInvoiceWebhookCard = () => {
       <CardContent className="space-y-4">
         {/* Connection status */}
         <div className="flex items-center justify-between rounded-md border p-3">
-          <div>
+          <div className="flex-1">
             <div className="text-sm font-medium">סטטוס חיבור</div>
             <div className="text-xs text-muted-foreground mt-1">
               {isWorking
-                ? `${stats?.webhookCount} חשבוניות התקבלו ב-30 הימים האחרונים`
-                : "לא התקבלו חשבוניות ב-30 הימים האחרונים"}
+                ? `${stats?.recentLogsCount} קריאות ב-7 הימים האחרונים`
+                : "לא התקבלו קריאות מגרין-אינבויס ב-7 הימים האחרונים"}
             </div>
+            {stats && (stats.success24h > 0 || stats.failed24h > 0) && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                ב-24 שעות: {stats.success24h} הצליחו
+                {stats.failed24h > 0 && (
+                  <span className="text-destructive">, {stats.failed24h} נכשלו</span>
+                )}
+              </div>
+            )}
+            {stats?.lastLog && (
+              <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Clock className="h-3 w-3" />
+                אחרון: {formatDate(stats.lastLog.received_at)}
+                {stats.lastLog.error && (
+                  <span className="text-destructive"> · שגיאה</span>
+                )}
+              </div>
+            )}
             {stats?.lastPayment && (
               <div className="text-xs text-muted-foreground">
-                אחרונה: #{stats.lastPayment.receipt_number} ב-
+                תשלום אחרון: #{stats.lastPayment.receipt_number} ב-
                 {new Date(stats.lastPayment.created_at).toLocaleDateString("he-IL")}
               </div>
             )}
@@ -88,9 +162,9 @@ const GreenInvoiceWebhookCard = () => {
               פעיל
             </Badge>
           ) : (
-            <Badge variant="destructive">
-              <AlertCircle className="ml-1 h-3 w-3" />
-              לא פעיל
+            <Badge variant="secondary">
+              <Clock className="ml-1 h-3 w-3" />
+              ממתין לקריאה
             </Badge>
           )}
         </div>
@@ -107,24 +181,65 @@ const GreenInvoiceWebhookCard = () => {
             </Button>
           </div>
           <div className="text-xs text-muted-foreground mt-2">
-            Event type: <code>document/created</code> · Secret: ריק
+            Event type: <code>document/created</code>
           </div>
         </div>
 
-        {/* No webhook warning */}
-        {!isWorking && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              נראה שגרין-אינבויס לא שולח התראות. בדוק בפאנל גרין-אינבויס:
-              <ol className="list-decimal mr-4 mt-1 space-y-1">
-                <li>שה-URL למעלה זהה למה שמוגדר</li>
-                <li>ש-Event type הוא <code>document/created</code></li>
-                <li>שהוובהוק במצב "פעיל"</li>
-              </ol>
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Logs button */}
+        <Dialog open={logsOpen} onOpenChange={(o) => { setLogsOpen(o); if (o) refetchLogs(); }}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full">
+              <ScrollText className="ml-2 h-4 w-4" />
+              הצג יומן Webhook (20 אחרונים)
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>יומן קריאות Webhook מגרין-אינבויס</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              {!logs || logs.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  עדיין לא התקבלו קריאות מגרין-אינבויס.
+                </div>
+              ) : (
+                logs.map((log: any) => (
+                  <div
+                    key={log.id}
+                    className={`rounded-md border p-3 text-xs space-y-1 ${
+                      log.error ? "border-destructive/50 bg-destructive/5" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{formatDate(log.received_at)}</div>
+                      <Badge variant={log.error ? "destructive" : "default"} className="text-xs">
+                        {log.status_code} {log.event_type ? `· ${log.event_type}` : ""}
+                      </Badge>
+                    </div>
+                    {log.external_payment_id && (
+                      <div className="text-muted-foreground">
+                        מזהה מסמך: {log.external_payment_id}
+                      </div>
+                    )}
+                    {log.error && (
+                      <div className="text-destructive">שגיאה: {log.error}</div>
+                    )}
+                    {log.payload && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          הצג Payload
+                        </summary>
+                        <pre className="mt-1 overflow-auto rounded bg-muted p-2 text-[10px]" dir="ltr">
+                          {JSON.stringify(log.payload, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Missing IDs warning */}
         {stats && stats.missingIds.length > 0 && (
