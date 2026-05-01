@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, LogOut, Users, History, Download, BarChart3 } from "lucide-react";
 import GoogleCalendarSection from "@/components/GoogleCalendarSection";
+import GreenInvoiceWebhookCard from "@/components/GreenInvoiceWebhookCard";
 import MonthlyBillingSummary from "@/components/MonthlyBillingSummary";
 import RevenueChart from "@/components/RevenueChart";
 import SmartAlertsCard from "@/components/SmartAlertsCard";
@@ -196,6 +197,11 @@ const Dashboard = () => {
         {/* Google Calendar connection (only shows if not connected) */}
         <div className="mb-6">
           <GoogleCalendarSection />
+        </div>
+
+        {/* Green Invoice webhook diagnostics */}
+        <div className="mb-6">
+          <GreenInvoiceWebhookCard />
         </div>
 
         {/* Personal AI assistant */}
