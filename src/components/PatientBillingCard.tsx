@@ -669,6 +669,18 @@ const PatientBillingCard = ({
                     <span className="text-muted-foreground" dir="ltr">
                       {session.date}
                     </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecorderSession(session);
+                      }}
+                      className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                      title="הקלט סיכום פגישה"
+                      aria-label="הקלט סיכום פגישה"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -919,6 +931,13 @@ const PatientBillingCard = ({
           sessionPrice: s.sessionPrice,
           isPaidPending: (s as any).isPaidPending,
         }))}
+      />
+
+      <SessionNoteRecorderDialog
+        open={!!recorderSession}
+        onOpenChange={(o) => { if (!o) setRecorderSession(null); }}
+        patientName={recorderSession?.childPatientName || billing.patient.name}
+        sessionDate={recorderSession?.date || ""}
       />
     </div>
   );
