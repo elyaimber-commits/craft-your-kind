@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS skip_green_invoice boolean NOT NULL DEFAULT false;

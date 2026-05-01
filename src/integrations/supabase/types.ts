@@ -182,6 +182,7 @@ export type Database = {
           parent_patient_id: string | null
           phone: string
           session_price: number
+          skip_green_invoice: boolean
           therapist_id: string
           updated_at: string
         }
@@ -198,6 +199,7 @@ export type Database = {
           parent_patient_id?: string | null
           phone: string
           session_price?: number
+          skip_green_invoice?: boolean
           therapist_id: string
           updated_at?: string
         }
@@ -214,6 +216,7 @@ export type Database = {
           parent_patient_id?: string | null
           phone?: string
           session_price?: number
+          skip_green_invoice?: boolean
           therapist_id?: string
           updated_at?: string
         }
