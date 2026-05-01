@@ -4,13 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Mic, Square, Play, RotateCcw, Loader2, Download, Sparkles } from "lucide-react";
+import { Mic, Square, RotateCcw, Loader2, Download, Sparkles, Cloud, FolderCog } from "lucide-react";
+import DriveFolderPickerDialog from "./DriveFolderPickerDialog";
 
 interface SessionNoteRecorderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  patientId: string;
   patientName: string;
   sessionDate: string; // display, e.g. "5/4/26"
+  driveFolderId?: string | null;
+  driveFolderName?: string | null;
+  onFolderUpdated?: (folderId: string, folderName: string) => void;
 }
 
 type Phase = "idle" | "recording" | "recorded" | "processing" | "done";
