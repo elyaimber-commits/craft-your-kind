@@ -22,8 +22,54 @@ const formatDate = (iso: string) => {
   return d.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" });
 };
 
+const MissingIdRow = ({ patient, onSaved }: { patient: { id: string; name: string }; onSaved: () => void }) => {
+  const { toast } = useToast();
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast({ title: "יש להזין מזהה", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("patients")
+      .update({ green_invoice_customer_id: trimmed })
+      .eq("id", patient.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "שגיאה בשמירה", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "נשמר", description: `${patient.name} עודכן בהצלחה` });
+    setValue("");
+    onSaved();
+  };
+
+  return (
+    <li className="flex items-center gap-2 px-3 py-2">
+      <span className="flex-1 text-xs truncate">{patient.name}</span>
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+        placeholder="Green Invoice ID"
+        className="h-7 text-xs w-40"
+        dir="ltr"
+        disabled={saving}
+      />
+      <Button size="sm" variant="outline" className="h-7 px-2" onClick={save} disabled={saving}>
+        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      </Button>
+    </li>
+  );
+};
+
 const GreenInvoiceWebhookCard = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
 
