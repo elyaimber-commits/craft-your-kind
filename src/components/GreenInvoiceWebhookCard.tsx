@@ -270,29 +270,82 @@ const GreenInvoiceWebhookCard = () => {
         </div>
 
         {/* Logs button */}
-        <Dialog open={logsOpen} onOpenChange={(o) => { setLogsOpen(o); if (o) refetchLogs(); }}>
+        <Dialog open={logsOpen} onOpenChange={(o) => { setLogsOpen(o); if (o) refetchLogs(); else setShowOnlyFailed(false); }}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="w-full">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setShowOnlyFailed(false)}>
               <ScrollText className="ml-2 h-4 w-4" />
               הצג יומן Webhook (20 אחרונים)
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>יומן קריאות Webhook מגרין-אינבויס</DialogTitle>
+              <DialogTitle>
+                {showOnlyFailed ? "כשלונות Webhook (24 שעות)" : "יומן קריאות Webhook מגרין-אינבויס"}
+              </DialogTitle>
             </DialogHeader>
+            <div className="flex items-center gap-2 pb-2">
+              <Button
+                size="sm"
+                variant={showOnlyFailed ? "default" : "outline"}
+                onClick={() => setShowOnlyFailed(true)}
+              >
+                רק כשלונות
+              </Button>
+              <Button
+                size="sm"
+                variant={!showOnlyFailed ? "default" : "outline"}
+                onClick={() => setShowOnlyFailed(false)}
+              >
+                הכל
+              </Button>
+            </div>
             <div className="space-y-2">
-              {!logs || logs.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-8">
-                  עדיין לא התקבלו קריאות מגרין-אינבויס.
-                </div>
-              ) : (
-                logs.map((log: any) => (
+              {(() => {
+                const filtered = (logs || []).filter((l: any) => !showOnlyFailed || l.error);
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      {showOnlyFailed ? "אין כשלונות 🎉" : "עדיין לא התקבלו קריאות מגרין-אינבויס."}
+                    </div>
+                  );
+                }
+                return filtered.map((log: any) => (
                   <div
                     key={log.id}
                     className={`rounded-md border p-3 text-xs space-y-1 ${
                       log.error ? "border-destructive/50 bg-destructive/5" : ""
                     }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{formatDate(log.received_at)}</div>
+                      <Badge variant={log.error ? "destructive" : "default"} className="text-xs">
+                        {log.status_code} {log.event_type ? `· ${log.event_type}` : ""}
+                      </Badge>
+                    </div>
+                    {log.external_payment_id && (
+                      <div className="text-muted-foreground">
+                        מזהה מסמך: {log.external_payment_id}
+                      </div>
+                    )}
+                    {log.error && (
+                      <div className="text-destructive font-medium">שגיאה: {log.error}</div>
+                    )}
+                    {log.payload && (
+                      <details className="mt-1" open={!!log.error}>
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          הצג Payload
+                        </summary>
+                        <pre className="mt-1 overflow-auto rounded bg-muted p-2 text-[10px]" dir="ltr">
+                          {JSON.stringify(log.payload, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
                   >
                     <div className="flex items-center justify-between">
                       <div className="font-medium">{formatDate(log.received_at)}</div>
