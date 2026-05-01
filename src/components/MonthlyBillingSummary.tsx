@@ -295,6 +295,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
             calendarId: event.organizer?.email || "primary",
             childPatientName: matchedPatient.id !== patient.id ? matchedPatient.name : undefined,
             sessionPrice: overrideMap.has(event.id) ? overrideMap.get(event.id)! : matchedPatient.session_price,
+            isPaidPending: event.colorId === PENDING_INVOICE_COLOR_ID,
           };
         });
 
