@@ -135,6 +135,7 @@ const GreenInvoiceWebhookCard = () => {
         .from("patients")
         .select("id, name")
         .is("green_invoice_customer_id", null)
+        .eq("skip_green_invoice", false)
         .order("name");
 
       const { data: lastPayment } = await supabase
