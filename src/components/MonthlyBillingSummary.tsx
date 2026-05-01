@@ -784,6 +784,88 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={paidBreakdownOpen} onOpenChange={setPaidBreakdownOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>פירוט תשלומים — {currentMonthName}</DialogTitle>
+            <DialogDescription>
+              סה״כ שולם: ₪{totalPaid} מתוך ₪{totalBilled} · נותר: ₪{currentMonthRemaining}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {(() => {
+              const rows = filteredBillingData
+                .map((b) => {
+                  const payment = payments.find((p) => p.patient_id === b.patient.id);
+                  const paidIds: string[] = (payment as any)?.paid_event_ids || [];
+                  const sessionsWithStatus = b.sessions.map((s) => {
+                    const ev = events.find((e) => e.id === s.eventId);
+                    const colorId = ev?.colorId;
+                    let label = "לא שולם";
+                    let color = "text-muted-foreground";
+                    if (colorId === PAID_COLOR_ID) {
+                      label = "שולם (סגול - חשבונית)";
+                      color = "text-purple-600 dark:text-purple-400";
+                    } else if (colorId === PENDING_INVOICE_COLOR_ID) {
+                      label = "שולם (כתום - ממתין לחשבונית)";
+                      color = "text-orange-600 dark:text-orange-400";
+                    } else if (s.eventId && paidIds.includes(s.eventId)) {
+                      label = "שולם (DB - לא תואם צבע יומן!)";
+                      color = "text-destructive";
+                    }
+                    const isPaid =
+                      colorId === PAID_COLOR_ID ||
+                      colorId === PENDING_INVOICE_COLOR_ID ||
+                      (s.eventId ? paidIds.includes(s.eventId) : false);
+                    return { ...s, colorId, label, color, isPaid };
+                  });
+                  const sessionsPaidAmount = sessionsWithStatus
+                    .filter((s) => s.isPaid)
+                    .reduce((sum, s) => sum + (s.sessionPrice ?? b.patient.session_price), 0);
+                  const dbAmount = Number((payment as any)?.amount ?? 0);
+                  const extraPaid = Math.max(0, dbAmount - sessionsPaidAmount);
+                  return { b, sessionsWithStatus, sessionsPaidAmount, extraPaid, dbAmount };
+                })
+                .filter((r) => r.sessionsPaidAmount > 0 || r.extraPaid > 0)
+                .sort((a, b) => (b.sessionsPaidAmount + b.extraPaid) - (a.sessionsPaidAmount + a.extraPaid));
+
+              if (rows.length === 0) {
+                return <p className="text-center text-muted-foreground py-6">לא נמצאו תשלומים החודש</p>;
+              }
+
+              return rows.map(({ b, sessionsWithStatus, sessionsPaidAmount, extraPaid }) => (
+                <div key={b.patient.id} className="border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold">{b.patient.name}</span>
+                    <span className="text-sm font-mono">
+                      ₪{sessionsPaidAmount + extraPaid} / ₪{b.total}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    {sessionsWithStatus.map((s, i) => (
+                      <div key={s.eventId || i} className="flex items-center justify-between gap-2 py-1 border-b border-border/30 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground tabular-nums">{s.date}</span>
+                          <span className={s.color}>{s.label}</span>
+                        </div>
+                        <span className="font-mono">₪{s.sessionPrice ?? b.patient.session_price}</span>
+                      </div>
+                    ))}
+                    {extraPaid > 0 && (
+                      <div className="flex items-center justify-between gap-2 py-1 border-t mt-1">
+                        <span className="text-orange-600 dark:text-orange-400">תשלום חלקי ידני (לא משויך לפגישה ספציפית)</span>
+                        <span className="font-mono">₪{extraPaid}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
