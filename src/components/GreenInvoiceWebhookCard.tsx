@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2 } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2, X } from "lucide-react";
 
 const WEBHOOK_URL = "https://puejfjhrinmsjvisyomh.supabase.co/functions/v1/green-invoice-webhook";
 
