@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Receipt, ScrollText, Clock, Check, Loader2 } from "lucide-react";
 
 const WEBHOOK_URL = "https://puejfjhrinmsjvisyomh.supabase.co/functions/v1/green-invoice-webhook";
 
