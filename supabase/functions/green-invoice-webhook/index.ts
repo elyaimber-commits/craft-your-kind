@@ -413,14 +413,31 @@ serve(async (req) => {
       }
     }
 
+    await logWebhook({
+      status_code: 200,
+      event_type: docType ? String(docType) : null,
+      external_payment_id: externalPaymentId,
+      matched_patient_id: patient.id,
+      therapist_id: patient.therapist_id,
+      payload,
+    });
+
     return new Response(JSON.stringify({ ok: true, message: "Payment processed" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Webhook error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+    await logWebhook({
+      status_code: 500,
+      event_type: payload?.type ? String(payload.type) : null,
+      external_payment_id: payload?.id ? String(payload.id) : null,
+      error: message,
+      payload,
+    });
+    // Return 200 so Morning doesn't disable the webhook; we logged the error
+    return new Response(JSON.stringify({ ok: false, error: message }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
