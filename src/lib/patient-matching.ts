@@ -39,8 +39,8 @@ export const findMatchingPatient = <P extends PatientLite>(
 
 // ===== Color logic =====
 // Status combinations and their target Google Calendar color IDs:
-//   not summarized + not paid -> "5"  (banana / yellow)   <-- the new "needs handling" yellow
-//   summarized     + not paid -> default (no colorId)     <-- session was summarized, awaiting payment
+//   summarized     + not paid -> "5"  (banana / yellow)   <-- session held & summarized, awaiting payment
+//   not summarized + not paid -> default (no colorId)     <-- nothing done yet
 //   not summarized + paid     -> "6"  (tangerine / orange)
 //   summarized     + paid     -> "3"  (grape / purple)
 // Cancelled events ("4" / flamingo) are left untouched.
@@ -54,6 +54,6 @@ export type EventStatus = {
 export const computeTargetColorId = (s: EventStatus): string | null => {
   if (s.summarized && s.paid) return "3";
   if (!s.summarized && s.paid) return "6";
-  if (s.summarized && !s.paid) return null; // reset to default
-  return "5"; // not summarized, not paid -> yellow
+  if (s.summarized && !s.paid) return "5"; // summarized, awaiting payment -> yellow
+  return null; // nothing done -> default
 };
