@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import PaymentHistory from "./pages/PaymentHistory";
 import Analysis from "./pages/Analysis";
 import WeeklyFinance from "./pages/WeeklyFinance";
+import Tasks from "./pages/Tasks";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/payments" element={<ProtectedRoute><PaymentHistory /></ProtectedRoute>} />
           <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
           <Route path="/weekly-finance" element={<ProtectedRoute><WeeklyFinance /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
