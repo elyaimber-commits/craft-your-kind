@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import PartialPaymentDialog from "./PartialPaymentDialog";
 import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
 import SessionNoteRecorderDialog from "./SessionNoteRecorderDialog";
+import DriveFolderPickerDialog from "./DriveFolderPickerDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -20,6 +21,8 @@ import {
   Plus,
   FileText,
   Mic,
+  FolderCog,
+  Folder,
 } from "lucide-react";
 
 interface Patient {
