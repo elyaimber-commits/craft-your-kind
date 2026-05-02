@@ -509,6 +509,21 @@ const PatientBillingCard = ({
             <span className="text-sm text-muted-foreground">
               ({billing.sessions.length} פגישות{billing.childPatients && billing.childPatients.length > 0 ? ` · ${billing.childPatients.length} מטופלים` : ""})
             </span>
+            <button
+              type="button"
+              onClick={() => setFolderPickerOpen(true)}
+              title={driveFolderName ? `תיקיית Drive: ${driveFolderName}` : "הגדר תיקיית Drive לסיכומים"}
+              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                driveFolderId
+                  ? "border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
+                  : "border-dashed text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {driveFolderId ? <Folder className="h-3 w-3" /> : <FolderCog className="h-3 w-3" />}
+              <span className="max-w-[140px] truncate">
+                {driveFolderName || "הגדר תיקיית Drive"}
+              </span>
+            </button>
           </div>
           <div className="text-left">
             {(() => {
