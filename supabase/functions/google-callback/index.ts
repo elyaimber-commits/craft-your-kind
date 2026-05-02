@@ -47,6 +47,22 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    const grantedScopes = String(tokens.scope || '').split(/\s+/).filter(Boolean);
+    const requiredScopes = [
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.readonly',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ];
+    const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
+    if (missingScopes.length > 0) {
+      console.error('Google OAuth missing required scopes:', { missingScopes, grantedScopes });
+      return new Response(
+        `Google authorization is missing required permissions: ${missingScopes.join(', ')}`,
+        { status: 403 },
+      );
+    }
+
     const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
 
     // Upsert tokens

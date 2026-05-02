@@ -44,9 +44,32 @@ serve(async (req) => {
       throw new Error('GOOGLE_CLIENT_ID is not configured');
     }
 
-    const { redirectUrl } = await req.json();
+    const { redirectUrl, forceConsent } = await req.json().catch(() => ({}));
 
     const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-callback`;
+
+    if (forceConsent) {
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (serviceRoleKey) {
+        const admin = createClient(SUPABASE_URL, serviceRoleKey);
+        const { data: existingToken } = await admin
+          .from('google_tokens')
+          .select('access_token, refresh_token')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        const tokenToRevoke = existingToken?.refresh_token || existingToken?.access_token;
+        if (tokenToRevoke) {
+          await fetch('https://oauth2.googleapis.com/revoke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ token: tokenToRevoke }),
+          }).catch((error) => console.error('Google token revoke failed:', error));
+        }
+
+        await admin.from('google_tokens').delete().eq('user_id', userId);
+      }
+    }
 
     // State format: "userId|redirectUrl"
     const state = `${userId}|${redirectUrl || ''}`;
@@ -57,6 +80,7 @@ serve(async (req) => {
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
       access_type: 'offline',
+      include_granted_scopes: 'false',
       prompt: 'consent',
       state,
     });
