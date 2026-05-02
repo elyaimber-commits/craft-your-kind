@@ -718,22 +718,105 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (pErr) throw pErr;
         if (!patient) return json(404, { error: "Patient not found for this therapist" });
+        const trimmedEventId = eventId.trim();
+        const calendarId =
+          typeof body?.calendar_id === "string" && body.calendar_id.trim()
+            ? body.calendar_id.trim()
+            : "primary";
         const row = {
           therapist_id: therapistId,
           patient_id: patientId,
-          event_id: eventId.trim(),
+          event_id: trimmedEventId,
           drive_file_id:
             typeof body?.drive_file_id === "string" ? body.drive_file_id : null,
           drive_file_name:
             typeof body?.drive_file_name === "string" ? body.drive_file_name : null,
+          updated_at: new Date().toISOString(),
         };
         const { data, error } = await supabase
           .from("session_summaries")
-          .insert(row)
+          .upsert(row, { onConflict: "therapist_id,event_id" })
           .select("id, patient_id, event_id, drive_file_id, drive_file_name, created_at")
           .single();
         if (error) throw error;
-        return json(200, { session_summary: data });
+
+        // Best-effort: re-color the event in Google Calendar so it shows as
+        // summarized in the dashboard / Sessions to Handle list.
+        // Mirrors auto-color-events logic but runs inline (no JWT needed —
+        // we already have the therapist's Google token via service role).
+        let recolor: any = { attempted: false };
+        try {
+          recolor.attempted = true;
+          const accessToken = await getFreshAccessToken(supabase, therapistId);
+
+          // Pull current event to know colorId, start time, and skip cancelled.
+          const evRes = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(trimmedEventId)}?fields=id,colorId,start`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          if (!evRes.ok) {
+            recolor.error = `get event ${evRes.status}`;
+          } else {
+            const ev = await evRes.json();
+            if (ev.colorId === CANCELLED_COLOR_ID) {
+              recolor.skipped = "cancelled";
+            } else {
+              const startStr = ev.start?.dateTime || ev.start?.date;
+              const startMs = startStr ? new Date(startStr).getTime() : NaN;
+              const isPast = Number.isFinite(startMs) && startMs < Date.now();
+
+              // Determine paid/invoiced for THIS event from payments table +
+              // current calendar color (mirrors dashboard logic).
+              const { data: payRows } = await supabase
+                .from("payments")
+                .select("paid_event_ids, external_payment_id")
+                .eq("therapist_id", therapistId)
+                .eq("paid", true);
+              let paidInDb = false;
+              let invoicedInDb = false;
+              for (const p of payRows || []) {
+                const ids = (p as any).paid_event_ids || [];
+                if (ids.includes(trimmedEventId)) {
+                  paidInDb = true;
+                  if ((p as any).external_payment_id) invoicedInDb = true;
+                }
+              }
+              const paidByColor = ev.colorId && PAID_COLORS.has(ev.colorId);
+              const paid = paidInDb || !!paidByColor;
+              const invoiced = invoicedInDb;
+
+              // summarized=true (we just inserted), apply target color.
+              let target: string | null = null;
+              if (paid && invoiced) target = "3";
+              else if (paid) target = "7";
+              else target = "5"; // summarized + not paid
+
+              if ((ev.colorId || null) !== target) {
+                const patchRes = await fetch(
+                  `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(trimmedEventId)}?fields=id,colorId`,
+                  {
+                    method: "PATCH",
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ colorId: target }),
+                  },
+                );
+                recolor.patched = patchRes.ok;
+                recolor.colorId = target;
+                if (!patchRes.ok) recolor.error = `patch ${patchRes.status}`;
+              } else {
+                recolor.skipped = "already-correct";
+                recolor.colorId = target;
+              }
+            }
+          }
+        } catch (e) {
+          recolor.error = e instanceof Error ? e.message : String(e);
+        }
+
+        return json(200, { session_summary: data, recolor });
       }
 
       default:
