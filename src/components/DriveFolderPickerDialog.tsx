@@ -87,7 +87,11 @@ const DriveFolderPickerDialog = ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
       const res = await supabase.functions.invoke("google-auth", {
-        body: { userId: session.user.id, redirectUrl: window.location.origin + "/dashboard" },
+        body: {
+          userId: session.user.id,
+          redirectUrl: window.location.origin + "/dashboard",
+          forceConsent: true,
+        },
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.error) throw res.error;
