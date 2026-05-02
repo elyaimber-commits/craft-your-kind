@@ -16,6 +16,12 @@ interface SessionNoteRecorderDialogProps {
   driveFolderId?: string | null;
   driveFolderName?: string | null;
   onFolderUpdated?: (folderId: string, folderName: string) => void;
+  /** Calendar event id (for marking summary done + auto-coloring). Optional for backward compat. */
+  eventId?: string;
+  /** Calendar id where the event lives. Required to recolor. */
+  calendarId?: string;
+  /** Called after a successful save-to-Drive (so callers can refresh status). */
+  onSummarySaved?: () => void;
 }
 
 type Phase = "idle" | "recording" | "recorded" | "processing" | "done";
