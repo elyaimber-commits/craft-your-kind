@@ -64,7 +64,12 @@ Deno.serve(async (req) => {
     const data = await resp.json();
     if (!resp.ok) {
       console.error("Drive list error:", data);
-      return new Response(JSON.stringify({ error: data?.error?.message || "Drive error", detail: data }), {
+      const reason = data?.error?.details?.find?.((detail: Record<string, unknown>) => detail?.reason)?.reason;
+      return new Response(JSON.stringify({
+        error: data?.error?.message || "Drive error",
+        code: reason || data?.error?.status || "DRIVE_ERROR",
+        detail: data,
+      }), {
         status: resp.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
