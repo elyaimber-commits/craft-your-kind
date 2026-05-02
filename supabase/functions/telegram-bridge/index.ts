@@ -262,6 +262,7 @@ async function buildBillingForMonth(
         summary: string;
         sessionPrice: number;
         colorId?: string;
+        calendarId?: string;
         matchedPatientId: string;
         matchedPatientName: string;
       }> = [];
