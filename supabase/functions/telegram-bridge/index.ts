@@ -431,6 +431,17 @@ Deno.serve(async (req) => {
                   "string (optional, default 'primary') — calendar that contains the event; needed for the recolor step to succeed",
               },
             },
+            mark_as_paid: {
+              description:
+                "Record a payment for a patient for a given month, mirroring the dashboard 'mark as paid' action. Upserts the payments row (one per patient/month), marks all that month's sessions as paid (paid_event_ids), and re-colors the calendar events to the paid color.",
+              body: {
+                patient_id: "uuid (required)",
+                month: "string YYYY-MM (required)",
+                amount:
+                  "number (optional) — total paid; defaults to the month's total_billed for the patient",
+                notes: "string (optional)",
+              },
+            },
           },
         });
       }
