@@ -12,6 +12,10 @@ interface SessionLine {
   date: string;       // D/M/YY display
   price: number;      // amount per session
   description?: string;
+  eventId?: string;
+  calendarId?: string;
+  startISO?: string;
+  paid?: boolean;
 }
 
 interface RequestBody {
@@ -233,6 +237,74 @@ serve(async (req) => {
     }
 
     console.log('GI document created:', docResult.id, docResult.number);
+
+    // Persist invoice/receipt status for selected calendar sessions and recolor them.
+    if (hasSessions) {
+      const service = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const byMonth = new Map<string, SessionLine[]>();
+      for (const s of body.sessions!.filter((s) => s.eventId)) {
+        const d = s.startISO ? new Date(s.startISO) : new Date();
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' }).formatToParts(d);
+        const monthKey = `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}`;
+        byMonth.set(monthKey, [...(byMonth.get(monthKey) || []), s]);
+      }
+
+      for (const [monthKey, items] of byMonth.entries()) {
+        const eventIds = items.map((s) => s.eventId!).filter(Boolean);
+        const paidEventIds = body.documentType === 305
+          ? items.filter((s) => s.paid).map((s) => s.eventId!).filter(Boolean)
+          : eventIds;
+        const amountForMonth = items.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+        const { data: existing } = await service
+          .from('payments')
+          .select('id, paid_event_ids, amount')
+          .eq('patient_id', patient.id)
+          .eq('month', monthKey)
+          .maybeSingle();
+
+        if (existing) {
+          const mergedIds = Array.from(new Set([...(existing.paid_event_ids || []), ...paidEventIds]));
+          await service.from('payments').update({
+            paid_event_ids: mergedIds,
+            session_count: mergedIds.length,
+            paid: mergedIds.length > 0,
+            paid_at: mergedIds.length > 0 ? new Date().toISOString() : null,
+            amount: Math.max(Number(existing.amount || 0), amountForMonth),
+            receipt_number: docResult.number ? String(docResult.number) : null,
+            external_source: 'green_invoice',
+            external_payment_id: String(docResult.id || docResult.number),
+            status: 'paid',
+          }).eq('id', existing.id);
+        } else {
+          await service.from('payments').insert({
+            therapist_id: userId,
+            patient_id: patient.id,
+            month: monthKey,
+            amount: amountForMonth,
+            session_count: paidEventIds.length,
+            paid_event_ids: paidEventIds,
+            paid: paidEventIds.length > 0,
+            paid_at: paidEventIds.length > 0 ? new Date().toISOString() : null,
+            receipt_number: docResult.number ? String(docResult.number) : null,
+            external_source: 'green_invoice',
+            external_payment_id: String(docResult.id || docResult.number),
+            status: 'paid',
+          });
+        }
+      }
+
+      const colorEvents = body.sessions!
+        .filter((s) => s.eventId && s.calendarId)
+        .map((s) => ({ eventId: s.eventId!, calendarId: s.calendarId! }));
+      if (colorEvents.length > 0) {
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/auto-color-events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify({ events: colorEvents }),
+        }).catch((e) => console.error('auto-color trigger failed:', e));
+      }
+    }
 
     return new Response(JSON.stringify({
       success: true,
