@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   normalizeName,
   findMatchingPatient,
+  deriveEventStatus,
+  CANCELLED_COLOR_ID,
   type PatientLite,
 } from "@/lib/patient-matching";
 import SessionNoteRecorderDialog from "@/components/SessionNoteRecorderDialog";
@@ -63,8 +65,6 @@ interface ToHandleRow {
   invoiced: boolean;
   sessionPrice: number;
 }
-
-const CANCELLED_COLOR_ID = "4";
 
 const dayNames = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const fmtDate = (iso: string) => {
@@ -215,14 +215,12 @@ const Tasks = () => {
       const match = findMatchingPatient(name, patients as Patient[], aliasMap);
       if (!match) continue;
 
-      // Treat event as summarized if DB has a record OR calendar color marks it summarized
-      // (yellow "5" = summarized+unpaid, purple "3" = summarized+paid)
-      const summarizedByColor = ev.colorId === "5" || ev.colorId === "3";
-      const summarized = summarizedSet.has(ev.id) || summarizedByColor;
-      // Treat as paid if payments table has it OR calendar color marks it paid (orange/purple)
-      const paidByColor = ev.colorId === "6" || ev.colorId === "3";
-      const paid = paidEventSet.has(ev.id) || paidByColor;
-      const invoiced = invoicedEventSet.has(ev.id);
+      const { summarized, paid, invoiced } = deriveEventStatus({
+        colorId: ev.colorId,
+        summarizedInDb: summarizedSet.has(ev.id),
+        paidInDb: paidEventSet.has(ev.id),
+        invoicedInDb: invoicedEventSet.has(ev.id),
+      });
 
       if (summarized && paid && (invoiced || match.patient.skip_green_invoice)) continue;
 
@@ -516,11 +514,17 @@ const Tasks = () => {
           open={!!invoiceRow}
           onOpenChange={(o) => { if (!o) setInvoiceRow(null); }}
           patient={invoiceRow.patient as any}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ["payments-handle"] });
+            queryClient.invalidateQueries({ queryKey: ["sessions-to-handle-calendar"] });
+          }}
           sessions={[
             {
               date: invoiceRow.dateLabel,
               summary: invoiceRow.patient.name,
               eventId: invoiceRow.eventId,
+              calendarId: invoiceRow.calendarId,
+              startISO: invoiceRow.startISO,
               sessionPrice: invoiceRow.sessionPrice,
               isPaidPending: true,
             },

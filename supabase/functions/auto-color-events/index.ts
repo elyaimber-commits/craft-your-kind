@@ -2,10 +2,11 @@
 // Body: { events: [{ calendarId, eventId }, ...] }
 //
 // Color rules (status -> Google Calendar colorId):
-//   summarized     + not paid -> "5" (banana / yellow)    "summarized, awaiting payment"
-//   not summarized + not paid -> null (default color)     "nothing done yet"
-//   not summarized + paid     -> "6" (tangerine / orange)
-//   summarized     + paid     -> "3" (grape / purple)
+//   summarized     + not paid              -> "5" (banana / yellow)
+//   not summarized + not paid              -> null (default color)
+//   not summarized + paid                  -> "6" (tangerine / orange)
+//   summarized     + paid + not invoiced   -> "7" (peacock)
+//   summarized     + paid + invoiced       -> "3" (grape / purple)
 // Cancelled events ("4" / flamingo) are never modified.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -17,8 +18,13 @@ const corsHeaders = {
 
 const CANCELLED_COLOR_ID = "4";
 
-const computeTargetColor = (summarized: boolean, paid: boolean): string | null => {
-  if (summarized && paid) return "3";
+const computeTargetColor = (
+  summarized: boolean,
+  paid: boolean,
+  invoiced: boolean,
+): string | null => {
+  if (summarized && paid && invoiced) return "3";
+  if (summarized && paid) return "7";
   if (!summarized && paid) return "6";
   if (summarized && !paid) return "5";
   return null;
@@ -76,12 +82,17 @@ Deno.serve(async (req) => {
     // Fetch which events have been paid
     const { data: payments } = await supaService
       .from("payments")
-      .select("paid_event_ids")
+      .select("paid_event_ids, external_payment_id")
       .eq("therapist_id", userId)
       .eq("paid", true);
     const paidSet = new Set<string>();
+    const invoicedSet = new Set<string>();
     for (const p of payments || []) {
-      for (const eid of (p as any).paid_event_ids || []) paidSet.add(eid);
+      const isInvoiced = !!(p as any).external_payment_id;
+      for (const eid of (p as any).paid_event_ids || []) {
+        paidSet.add(eid);
+        if (isInvoiced) invoicedSet.add(eid);
+      }
     }
 
     const accessToken = await getFreshGoogleAccessToken(userId);
@@ -111,6 +122,7 @@ Deno.serve(async (req) => {
       const target = computeTargetColor(
         summarizedSet.has(eventId),
         paidSet.has(eventId),
+        invoicedSet.has(eventId),
       );
 
       if ((cur.colorId || null) === target) {

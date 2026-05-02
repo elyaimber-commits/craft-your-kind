@@ -62,7 +62,6 @@ interface AssignedSession {
   paymentId?: string;     // payment row id for that month
 }
 
-const PURPLE = "3";
 const LAVENDER = "1";
 
 function monthKeyFromISO(iso: string): string {
@@ -369,9 +368,9 @@ const PartialPaymentDialog = ({
         .map((a) => ({ eventId: a.eventId, calendarId: a.calendarId }));
 
       if (fullyPaidByCalendar.length > 0) {
-        await supabase.functions.invoke("google-calendar-update-colors", {
+        await supabase.functions.invoke("auto-color-events", {
           headers: { Authorization: `Bearer ${authSession.access_token}` },
-          body: { eventIds: fullyPaidByCalendar, colorId: PURPLE },
+          body: { events: fullyPaidByCalendar },
         });
       }
       if (partialByCalendar.length > 0) {
@@ -384,6 +383,7 @@ const PartialPaymentDialog = ({
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["payments-prior-debts"] });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+      queryClient.invalidateQueries({ queryKey: ["sessions-to-handle-calendar"] });
 
       const summaryParts = [
         fullyPaidByCalendar.length > 0

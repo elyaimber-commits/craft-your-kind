@@ -13,8 +13,10 @@ interface SessionItem {
   date: string;
   summary: string;
   eventId?: string;
+  calendarId?: string;
+  startISO?: string;
   sessionPrice?: number;
-  isPaidPending?: boolean; // orange = שולם, ממתין לחשבונית
+  isPaidPending?: boolean; // paid in calendar/app, waiting for invoice/receipt
 }
 
 interface Props {
@@ -22,6 +24,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   patient: { id: string; name: string; session_price: number };
   sessions: SessionItem[]; // current month sessions
+  onCreated?: () => void;
 }
 
 type DocType = 320 | 305 | 400;
@@ -33,7 +36,7 @@ const DOC_LABELS: Record<DocType, string> = {
   400: "קבלה",
 };
 
-const GreenInvoiceCreateDialog = ({ open, onOpenChange, patient, sessions }: Props) => {
+const GreenInvoiceCreateDialog = ({ open, onOpenChange, patient, sessions, onCreated }: Props) => {
   const { toast } = useToast();
   const [docType, setDocType] = useState<DocType>(320);
   const [mode, setMode] = useState<Mode>("sessions");
@@ -100,6 +103,10 @@ const GreenInvoiceCreateDialog = ({ open, onOpenChange, patient, sessions }: Pro
           date: s.date,
           price: s.sessionPrice ?? patient.session_price,
           description: `פגישה ${s.date}`,
+          eventId: s.eventId,
+          calendarId: s.calendarId,
+          startISO: s.startISO,
+          paid: !!s.isPaidPending,
         }));
       } else {
         body.customAmount = customTotal;
@@ -143,6 +150,7 @@ const GreenInvoiceCreateDialog = ({ open, onOpenChange, patient, sessions }: Pro
           ? `נשלחה במייל ל-${data.recipientEmail}`
           : "לא נשלחה במייל (אין כתובת ב-Green Invoice)",
       });
+      onCreated?.();
     } catch (e: any) {
       toast({
         title: "שגיאה",

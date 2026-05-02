@@ -50,13 +50,15 @@ interface MonthlyBillingSummaryProps {
 // default (undefined) = needs billing, session summary not written
 // "5" (banana/yellow) = needs billing, session summary done
 // "4" (flamingo/red) = cancelled, no billing
-// "3" (grape/purple) = paid (with invoice)
-// "6" (tangerine/orange) = paid, pending invoice
-const BILLING_COLOR_IDS = ["5", "3", "6"]; // Banana (unpaid) + Grape (paid) + Tangerine (paid pending invoice)
+// "6" (tangerine/orange) = paid, summary missing
+// "7" (peacock) = summarized + paid, pending invoice
+// "3" (grape/purple) = summarized + paid + invoiced
+const BILLING_COLOR_IDS = ["5", "3", "6", "7"];
 const isBillingEvent = (colorId?: string) => !colorId || BILLING_COLOR_IDS.includes(colorId);
 const CANCELLED_COLOR_ID = "4";
 const PAID_COLOR_ID = "3";
-const PENDING_INVOICE_COLOR_ID = "6";
+const PAID_UNSUMMARIZED_COLOR_ID = "6";
+const PENDING_INVOICE_COLOR_ID = "7";
 
 /** Normalize a name for matching: trim, collapse whitespace, lowercase, strip diacritics, collapse duplicate Hebrew letters */
 const normalizeName = (name: string): string =>
@@ -330,7 +332,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               const event = events.find((e) => e.id === s.eventId);
               return (
                 s.eventId &&
-                (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID)
+                (event?.colorId === PAID_COLOR_ID || event?.colorId === PENDING_INVOICE_COLOR_ID || event?.colorId === PAID_UNSUMMARIZED_COLOR_ID)
               );
             })
             .map((s) => s.eventId!)
@@ -467,7 +469,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     return "partial";
   };
 
-  // Detect "paid pending invoice": patient has at least one orange session this month
+  // Detect "paid pending invoice": patient has at least one peacock session this month
   // (skipped if patient is configured to skip Green Invoice)
   const hasPendingInvoice = (b: typeof billingData[number]): boolean => {
     if ((b.patient as any).skip_green_invoice) return false;
