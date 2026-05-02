@@ -280,6 +280,7 @@ async function buildBillingForMonth(
           summary: ev.summary || "",
           sessionPrice: price,
           colorId: ev.colorId,
+          calendarId: ev.calendarId,
           matchedPatientId: matched.id,
           matchedPatientName: matched.name,
         });
