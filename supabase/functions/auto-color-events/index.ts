@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     const patchOne = async (calendarId: string, eventId: string) => {
       // Check current colorId — never touch cancelled
       const getRes = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId`,
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId,start`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (!getRes.ok) {
@@ -122,10 +122,15 @@ Deno.serve(async (req) => {
         return;
       }
 
+      const startStr = cur.start?.dateTime || cur.start?.date;
+      const startMs = startStr ? new Date(startStr).getTime() : NaN;
+      const isPast = Number.isFinite(startMs) && startMs < Date.now();
+
       const target = computeTargetColor(
         summarizedSet.has(eventId),
         paidSet.has(eventId),
         invoicedSet.has(eventId),
+        isPast,
       );
 
       if ((cur.colorId || null) === target) {
