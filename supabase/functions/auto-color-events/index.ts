@@ -2,11 +2,12 @@
 // Body: { events: [{ calendarId, eventId }, ...] }
 //
 // Color rules (status -> Google Calendar colorId):
-//   summarized     + not paid              -> "5" (banana / yellow)
-//   not summarized + not paid              -> null (default color)
-//   not summarized + paid                  -> "6" (tangerine / orange)
-//   summarized     + paid + not invoiced   -> "7" (peacock)
-//   summarized     + paid + invoiced       -> "3" (grape / purple)
+//   summarized     + not paid                       -> "5" (banana / yellow)
+//   not summarized + not paid + future              -> null (default color)
+//   not summarized + not paid + past (already held) -> "1" (lavender)
+//   not summarized + paid                           -> "6" (tangerine / orange)
+//   summarized     + paid + not invoiced            -> "7" (peacock)
+//   summarized     + paid + invoiced                -> "3" (grape / purple)
 // Cancelled events ("4" / flamingo) are never modified.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -22,11 +23,13 @@ const computeTargetColor = (
   summarized: boolean,
   paid: boolean,
   invoiced: boolean,
+  isPast: boolean,
 ): string | null => {
   if (summarized && paid && invoiced) return "3";
   if (summarized && paid) return "7";
   if (!summarized && paid) return "6";
   if (summarized && !paid) return "5";
+  if (!summarized && !paid && isPast) return "1"; // lavender
   return null;
 };
 
@@ -106,7 +109,7 @@ Deno.serve(async (req) => {
     const patchOne = async (calendarId: string, eventId: string) => {
       // Check current colorId — never touch cancelled
       const getRes = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId`,
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,colorId,start`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (!getRes.ok) {
@@ -119,10 +122,15 @@ Deno.serve(async (req) => {
         return;
       }
 
+      const startStr = cur.start?.dateTime || cur.start?.date;
+      const startMs = startStr ? new Date(startStr).getTime() : NaN;
+      const isPast = Number.isFinite(startMs) && startMs < Date.now();
+
       const target = computeTargetColor(
         summarizedSet.has(eventId),
         paidSet.has(eventId),
         invoicedSet.has(eventId),
+        isPast,
       );
 
       if ((cur.colorId || null) === target) {
