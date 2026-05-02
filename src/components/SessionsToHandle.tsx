@@ -419,11 +419,17 @@ const SessionsToHandle = ({ patients }: { patients: Patient[] }) => {
           open={!!invoiceRow}
           onOpenChange={(o) => { if (!o) setInvoiceRow(null); }}
           patient={invoiceRow.patient as any}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ["payments-handle"] });
+            queryClient.invalidateQueries({ queryKey: ["sessions-to-handle-calendar"] });
+          }}
           sessions={[
             {
               date: invoiceRow.dateLabel,
               summary: invoiceRow.patient.name,
               eventId: invoiceRow.eventId,
+              calendarId: invoiceRow.calendarId,
+              startISO: invoiceRow.startISO,
               sessionPrice: invoiceRow.sessionPrice,
               isPaidPending: true,
             },
