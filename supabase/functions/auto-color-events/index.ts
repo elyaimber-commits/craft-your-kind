@@ -2,11 +2,12 @@
 // Body: { events: [{ calendarId, eventId }, ...] }
 //
 // Color rules (status -> Google Calendar colorId):
-//   summarized     + not paid              -> "5" (banana / yellow)
-//   not summarized + not paid              -> null (default color)
-//   not summarized + paid                  -> "6" (tangerine / orange)
-//   summarized     + paid + not invoiced   -> "7" (peacock)
-//   summarized     + paid + invoiced       -> "3" (grape / purple)
+//   summarized     + not paid                       -> "5" (banana / yellow)
+//   not summarized + not paid + future              -> null (default color)
+//   not summarized + not paid + past (already held) -> "1" (lavender)
+//   not summarized + paid                           -> "6" (tangerine / orange)
+//   summarized     + paid + not invoiced            -> "7" (peacock)
+//   summarized     + paid + invoiced                -> "3" (grape / purple)
 // Cancelled events ("4" / flamingo) are never modified.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
