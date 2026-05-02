@@ -846,6 +846,170 @@ Deno.serve(async (req) => {
         return json(200, { session_summary: data, recolor });
       }
 
+      case "mark_as_paid": {
+        const patientId = body?.patient_id;
+        const monthStr = body?.month;
+        if (!isUuid(patientId)) return json(400, { error: "Invalid 'patient_id'" });
+        if (typeof monthStr !== "string" || !/^\d{4}-\d{2}$/.test(monthStr))
+          return json(400, { error: "Invalid 'month' (expected YYYY-MM)" });
+
+        const amountRaw = body?.amount;
+        let amountOverride: number | null = null;
+        if (amountRaw !== undefined && amountRaw !== null && amountRaw !== "") {
+          const n = Number(amountRaw);
+          if (!Number.isFinite(n) || n < 0)
+            return json(400, { error: "Invalid 'amount'" });
+          amountOverride = n;
+        }
+        const notes = typeof body?.notes === "string" ? body.notes : null;
+
+        // Verify patient belongs to this therapist
+        const { data: patient, error: pErr } = await supabase
+          .from("patients")
+          .select("id, name")
+          .eq("id", patientId)
+          .eq("therapist_id", therapistId)
+          .maybeSingle();
+        if (pErr) throw pErr;
+        if (!patient)
+          return json(404, { error: "Patient not found for this therapist" });
+
+        // Build the month's billing to discover the patient's sessions + total
+        const billing = await buildBillingForMonth(supabase, therapistId, monthStr);
+        const row = billing.billingByPatient.find(
+          (b: any) => b.patient_id === patientId,
+        );
+        if (!row || row.sessions.length === 0) {
+          return json(400, {
+            error: "No billable sessions for this patient in that month",
+            month: monthStr,
+            patient_id: patientId,
+          });
+        }
+
+        const allEventIds: string[] = row.sessions
+          .map((s: any) => s.eventId)
+          .filter((x: any) => typeof x === "string" && x);
+        const totalBilled = Number(row.total_billed || 0);
+        const finalAmount = amountOverride !== null ? amountOverride : totalBilled;
+        const sessionCount = row.sessions.length;
+
+        // Upsert payments row (one per patient/month). There is no DB unique
+        // constraint on (therapist_id, patient_id, month), so emulate upsert
+        // with a select-then-update / insert.
+        const { data: existing, error: exErr } = await supabase
+          .from("payments")
+          .select("id, paid_event_ids")
+          .eq("therapist_id", therapistId)
+          .eq("patient_id", patientId)
+          .eq("month", monthStr)
+          .maybeSingle();
+        if (exErr) throw exErr;
+
+        let paymentId: string;
+        if (existing) {
+          const merged = Array.from(
+            new Set([...(existing.paid_event_ids || []), ...allEventIds]),
+          );
+          const { error: upErr } = await supabase
+            .from("payments")
+            .update({
+              amount: finalAmount,
+              session_count: sessionCount,
+              paid: true,
+              paid_at: new Date().toISOString(),
+              paid_event_ids: merged,
+              total_billed: totalBilled,
+              status: "paid",
+              ...(notes ? { notes } : {}),
+            })
+            .eq("id", existing.id);
+          if (upErr) throw upErr;
+          paymentId = existing.id;
+        } else {
+          const { data: ins, error: insErr } = await supabase
+            .from("payments")
+            .insert({
+              therapist_id: therapistId,
+              patient_id: patientId,
+              month: monthStr,
+              amount: finalAmount,
+              session_count: sessionCount,
+              paid: true,
+              paid_at: new Date().toISOString(),
+              paid_event_ids: allEventIds,
+              total_billed: totalBilled,
+              status: "paid",
+              notes,
+            })
+            .select("id")
+            .single();
+          if (insErr) throw insErr;
+          paymentId = ins.id;
+        }
+
+        // Re-color the calendar events to reflect paid status (mirrors
+        // PatientBillingCard's markAllMutation + auto-color-events logic).
+        const recolor: any = { attempted: 0, patched: 0, errors: [] as string[] };
+        try {
+          const accessToken = await getFreshAccessToken(supabase, therapistId);
+
+          // Existing summaries → distinguishes "summarized + paid" (7) vs
+          // plain "paid" (6). Invoiced (3) only when external_payment_id is
+          // present; we don't set that here.
+          const { data: sumRows } = await supabase
+            .from("session_summaries")
+            .select("event_id")
+            .eq("therapist_id", therapistId)
+            .in("event_id", allEventIds);
+          const summarizedSet = new Set<string>(
+            (sumRows || []).map((s: any) => s.event_id),
+          );
+
+          await Promise.all(
+            row.sessions.map(async (s: any) => {
+              if (!s.eventId || !s.calendarId) return;
+              recolor.attempted++;
+              try {
+                const target = summarizedSet.has(s.eventId) ? "7" : "6";
+                if ((s.colorId || null) === target) return;
+                const patchRes = await fetch(
+                  `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(s.calendarId)}/events/${encodeURIComponent(s.eventId)}?fields=id,colorId`,
+                  {
+                    method: "PATCH",
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ colorId: target }),
+                  },
+                );
+                if (patchRes.ok) recolor.patched++;
+                else recolor.errors.push(`${s.eventId}: ${patchRes.status}`);
+              } catch (e) {
+                recolor.errors.push(
+                  `${s.eventId}: ${e instanceof Error ? e.message : String(e)}`,
+                );
+              }
+            }),
+          );
+        } catch (e) {
+          recolor.fatal = e instanceof Error ? e.message : String(e);
+        }
+
+        return json(200, {
+          payment_id: paymentId,
+          patient_id: patientId,
+          patient_name: patient.name,
+          month: monthStr,
+          amount: finalAmount,
+          total_billed: totalBilled,
+          session_count: sessionCount,
+          paid_event_ids: allEventIds,
+          recolor,
+        });
+      }
+
       default:
         return json(400, {
           error: `Unknown action '${action}'`,
@@ -861,6 +1025,7 @@ Deno.serve(async (req) => {
             "get_all_balances",
             "get_recent_activity",
             "add_session_summary",
+            "mark_as_paid",
           ],
         });
     }
