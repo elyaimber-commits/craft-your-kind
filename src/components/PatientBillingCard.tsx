@@ -961,8 +961,14 @@ const PatientBillingCard = ({
         patientId={billing.patient.id}
         patientName={recorderSession?.childPatientName || billing.patient.name}
         sessionDate={recorderSession?.date || ""}
+        eventId={recorderSession?.eventId}
+        calendarId={recorderSession?.calendarId}
         driveFolderId={driveFolderId}
         driveFolderName={driveFolderName}
+        onSummarySaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["session-summaries"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+        }}
         onFolderUpdated={() => {
           queryClient.invalidateQueries({ queryKey: ["patients"] });
           queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
