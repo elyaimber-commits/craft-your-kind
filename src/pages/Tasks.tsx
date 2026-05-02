@@ -214,8 +214,13 @@ const Tasks = () => {
       const match = findMatchingPatient(name, patients as Patient[], aliasMap);
       if (!match) continue;
 
-      const summarized = summarizedSet.has(ev.id);
-      const paid = paidEventSet.has(ev.id);
+      // Treat event as summarized if DB has a record OR calendar color marks it summarized
+      // (yellow "5" = summarized+unpaid, purple "3" = summarized+paid)
+      const summarizedByColor = ev.colorId === "5" || ev.colorId === "3";
+      const summarized = summarizedSet.has(ev.id) || summarizedByColor;
+      // Treat as paid if payments table has it OR calendar color marks it paid (orange/purple)
+      const paidByColor = ev.colorId === "6" || ev.colorId === "3";
+      const paid = paidEventSet.has(ev.id) || paidByColor;
       const invoiced = invoicedEventSet.has(ev.id);
 
       if (summarized && paid && (invoiced || match.patient.skip_green_invoice)) continue;
