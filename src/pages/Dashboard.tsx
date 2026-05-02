@@ -16,6 +16,7 @@ import RevenueChart from "@/components/RevenueChart";
 import SmartAlertsCard from "@/components/SmartAlertsCard";
 import WorkHoursCard from "@/components/WorkHoursCard";
 import PersonalAssistantCard from "@/components/PersonalAssistantCard";
+import SessionsToHandle from "@/components/SessionsToHandle";
 import DataExport from "@/components/DataExport";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
@@ -207,6 +208,11 @@ const Dashboard = () => {
         {/* Personal AI assistant */}
         <div className="mb-6">
           <PersonalAssistantCard />
+        </div>
+
+        {/* Sessions to handle */}
+        <div className="mb-6">
+          <SessionsToHandle patients={patients as any} />
         </div>
 
         {/* Smart alerts + work hours analytics */}

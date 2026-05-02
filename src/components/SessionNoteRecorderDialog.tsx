@@ -16,6 +16,12 @@ interface SessionNoteRecorderDialogProps {
   driveFolderId?: string | null;
   driveFolderName?: string | null;
   onFolderUpdated?: (folderId: string, folderName: string) => void;
+  /** Calendar event id (for marking summary done + auto-coloring). Optional for backward compat. */
+  eventId?: string;
+  /** Calendar id where the event lives. Required to recolor. */
+  calendarId?: string;
+  /** Called after a successful save-to-Drive (so callers can refresh status). */
+  onSummarySaved?: () => void;
 }
 
 type Phase = "idle" | "recording" | "recorded" | "processing" | "done";
@@ -50,6 +56,9 @@ const SessionNoteRecorderDialog = ({
   driveFolderId,
   driveFolderName,
   onFolderUpdated,
+  eventId,
+  calendarId,
+  onSummarySaved,
 }: SessionNoteRecorderDialogProps) => {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -235,11 +244,15 @@ const SessionNoteRecorderDialog = ({
           folderId: driveFolderId,
           filename: filenameForFile(),
           content: cleaned,
+          eventId: eventId || undefined,
+          calendarId: calendarId || undefined,
+          patientId,
         },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       setSavedToDrive(true);
+      onSummarySaved?.();
       toast({
         title: "נשמר ב-Drive ✓",
         description: `${(data as any)?.name || filenameForFile()} → ${driveFolderName}`,
