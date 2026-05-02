@@ -950,6 +950,8 @@ const PatientBillingCard = ({
           date: s.date,
           summary: s.summary,
           eventId: s.eventId,
+          calendarId: s.calendarId,
+          startISO: s.startISO,
           sessionPrice: s.sessionPrice,
           isPaidPending: (s as any).isPaidPending,
         }))}
