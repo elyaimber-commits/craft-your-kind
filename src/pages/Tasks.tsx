@@ -349,13 +349,18 @@ const Tasks = () => {
           <div className="space-y-4">
             {grouped.map(({ patient, rows: patientRows }) => {
               const isCollapsed = collapsed[patient.id];
+              const unpaidRows = patientRows.filter((r) => !r.paid);
               const counts = {
                 summary: patientRows.filter((r) => !r.summarized).length,
-                payment: patientRows.filter((r) => !r.paid).length,
+                payment: unpaidRows.length,
                 invoice: patientRows.filter(
                   (r) => r.paid && !r.invoiced && !r.patient.skip_green_invoice,
                 ).length,
               };
+              const unpaidAmount = unpaidRows.reduce(
+                (sum, r) => sum + (r.sessionPrice || 0),
+                0,
+              );
               return (
                 <Card key={patient.id}>
                   <CardHeader
