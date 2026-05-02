@@ -61,13 +61,13 @@ export const statusFromCalendarColor = (
   colorId?: string | null,
 ): Partial<Required<EventStatus>> => {
   if (colorId === SUMMARIZED_UNPAID_COLOR_ID) {
-    return { summarized: true, paid: false, invoiced: false };
+    return { summarized: true };
   }
   if (colorId === PAID_UNSUMMARIZED_COLOR_ID) {
-    return { summarized: false, paid: true, invoiced: false };
+    return { paid: true };
   }
   if (colorId === SUMMARIZED_PAID_UNINVOICED_COLOR_ID) {
-    return { summarized: true, paid: true, invoiced: false };
+    return { summarized: true, paid: true };
   }
   if (colorId === COMPLETE_COLOR_ID) {
     return { summarized: true, paid: true, invoiced: true };
@@ -88,9 +88,9 @@ export const deriveEventStatus = ({
 }): Required<EventStatus> => {
   const fromColor = statusFromCalendarColor(colorId);
   return {
-    summarized: fromColor.summarized ?? summarizedInDb,
-    paid: fromColor.paid ?? paidInDb,
-    invoiced: fromColor.invoiced ?? invoicedInDb,
+    summarized: summarizedInDb || fromColor.summarized === true,
+    paid: paidInDb || fromColor.paid === true,
+    invoiced: invoicedInDb || fromColor.invoiced === true,
   };
 };
 
