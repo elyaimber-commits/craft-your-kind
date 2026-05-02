@@ -244,11 +244,15 @@ const SessionNoteRecorderDialog = ({
           folderId: driveFolderId,
           filename: filenameForFile(),
           content: cleaned,
+          eventId: eventId || undefined,
+          calendarId: calendarId || undefined,
+          patientId,
         },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       setSavedToDrive(true);
+      onSummarySaved?.();
       toast({
         title: "נשמר ב-Drive ✓",
         description: `${(data as any)?.name || filenameForFile()} → ${driveFolderName}`,
