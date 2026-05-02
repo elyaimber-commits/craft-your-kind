@@ -961,9 +961,22 @@ const PatientBillingCard = ({
         patientId={billing.patient.id}
         patientName={recorderSession?.childPatientName || billing.patient.name}
         sessionDate={recorderSession?.date || ""}
-        driveFolderId={(billing.patient as any).drive_folder_id || null}
-        driveFolderName={(billing.patient as any).drive_folder_name || null}
+        driveFolderId={driveFolderId}
+        driveFolderName={driveFolderName}
         onFolderUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["patients"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+        }}
+      />
+
+      <DriveFolderPickerDialog
+        open={folderPickerOpen}
+        onOpenChange={setFolderPickerOpen}
+        patientId={billing.patient.id}
+        patientName={billing.patient.name}
+        currentFolderId={driveFolderId}
+        currentFolderName={driveFolderName}
+        onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["patients"] });
           queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
         }}
