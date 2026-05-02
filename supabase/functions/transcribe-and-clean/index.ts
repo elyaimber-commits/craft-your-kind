@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     // ---- 1. Transcription ----
     const transcribeForm = new FormData();
     transcribeForm.append("file", audio as Blob, filename);
-    transcribeForm.append("model", "gpt-4o-mini-transcribe");
+    transcribeForm.append("model", "gpt-4o-transcribe");
     transcribeForm.append("language", "he");
     transcribeForm.append("response_format", "json");
 
