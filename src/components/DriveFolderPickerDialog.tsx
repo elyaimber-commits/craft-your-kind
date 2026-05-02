@@ -179,6 +179,15 @@ const DriveFolderPickerDialog = ({
           </Button>
         </div>
 
+        {needsReconnect && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm space-y-2">
+            <p>נדרשת הרשאת Google Drive נוספת כדי לגשת לתיקיות שלך.</p>
+            <Button size="sm" onClick={reconnectGoogle}>
+              התחבר מחדש ל-Google
+            </Button>
+          </div>
+        )}
+
         <div className="max-h-[400px] overflow-y-auto border rounded-md">
           {loading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
