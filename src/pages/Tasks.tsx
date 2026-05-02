@@ -291,6 +291,125 @@ const Tasks = () => {
     }
   };
 
+  const buildWhatsAppLink = (patient: Patient, unpaid: ToHandleRow[]) => {
+    const dates = unpaid
+      .map((r) => {
+        const d = new Date(r.startISO);
+        return new Intl.DateTimeFormat("he-IL", {
+          day: "numeric",
+          month: "numeric",
+          timeZone: "Asia/Jerusalem",
+        }).format(d);
+      })
+      .join(", ");
+    const total = unpaid.reduce((s, r) => s + (r.sessionPrice || 0), 0);
+    const message = `היי, מעדכן לגבי תשלום.\nמפגשים: ${dates}\nסה״כ: ₪${total}\nתודה!`;
+    const cleanPhone = (patient.phone || "").replace(/\D/g, "");
+    if (!cleanPhone) return null;
+    const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
+    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const [markingPaidPatient, setMarkingPaidPatient] = useState<string | null>(null);
+
+  const markPatientUnpaidAsPaid = async (
+    patient: Patient,
+    unpaid: ToHandleRow[],
+  ) => {
+    if (!user || unpaid.length === 0) return;
+    setMarkingPaidPatient(patient.id);
+    try {
+      // Group unpaid rows by their YYYY-MM (based on startISO)
+      const byMonth = new Map<string, ToHandleRow[]>();
+      for (const r of unpaid) {
+        const d = new Date(r.startISO);
+        const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const arr = byMonth.get(m) || [];
+        arr.push(r);
+        byMonth.set(m, arr);
+      }
+
+      for (const [month, rowsForMonth] of byMonth.entries()) {
+        // Fetch existing payment record for this patient/month
+        const { data: existing } = await supabase
+          .from("payments")
+          .select("id, amount, paid_event_ids, total_billed")
+          .eq("patient_id", patient.id)
+          .eq("month", month)
+          .maybeSingle();
+
+        const newEventIds = rowsForMonth.map((r) => r.eventId);
+        const addedAmount = rowsForMonth.reduce(
+          (s, r) => s + (r.sessionPrice || 0),
+          0,
+        );
+
+        if (existing) {
+          const mergedIds = Array.from(
+            new Set([...(existing.paid_event_ids || []), ...newEventIds]),
+          );
+          const newAmount = (existing.amount || 0) + addedAmount;
+          const isAllPaid =
+            existing.total_billed != null
+              ? newAmount >= existing.total_billed
+              : false;
+          await supabase
+            .from("payments")
+            .update({
+              amount: newAmount,
+              paid_event_ids: mergedIds,
+              session_count: mergedIds.length,
+              paid: isAllPaid,
+              paid_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+        } else {
+          await supabase.from("payments").insert({
+            therapist_id: user.id,
+            patient_id: patient.id,
+            month,
+            amount: addedAmount,
+            session_count: newEventIds.length,
+            paid_event_ids: newEventIds,
+            paid: false,
+            paid_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      // Recolor those events on the calendar
+      try {
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        if (authSession) {
+          await supabase.functions.invoke("auto-color-events", {
+            headers: { Authorization: `Bearer ${authSession.access_token}` },
+            body: {
+              events: unpaid.map((r) => ({
+                calendarId: r.calendarId,
+                eventId: r.eventId,
+              })),
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Failed to recolor:", e);
+      }
+
+      toast({ title: `סומנו ${unpaid.length} פגישות כשולמו` });
+      queryClient.invalidateQueries({ queryKey: ["payments-handle"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["sessions-to-handle-calendar"] });
+    } catch (e: any) {
+      toast({
+        title: "שגיאה בסימון תשלום",
+        description: e?.message || "נסה שוב",
+        variant: "destructive",
+      });
+    } finally {
+      setMarkingPaidPatient(null);
+    }
+  };
+
   const totalCount = filtered.length;
 
   return (
