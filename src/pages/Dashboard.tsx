@@ -210,6 +210,11 @@ const Dashboard = () => {
           <PersonalAssistantCard />
         </div>
 
+        {/* Sessions to handle */}
+        <div className="mb-6">
+          <SessionsToHandle patients={patients as any} />
+        </div>
+
         {/* Smart alerts + work hours analytics */}
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <SmartAlertsCard patients={patients} />
