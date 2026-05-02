@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import PartialPaymentDialog from "./PartialPaymentDialog";
 import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
 import SessionNoteRecorderDialog from "./SessionNoteRecorderDialog";
+import DriveFolderPickerDialog from "./DriveFolderPickerDialog";
 import {
   MessageCircle,
   ChevronDown,
@@ -20,6 +21,8 @@ import {
   Plus,
   FileText,
   Mic,
+  FolderCog,
+  Folder,
 } from "lucide-react";
 
 interface Patient {
@@ -120,6 +123,10 @@ const PatientBillingCard = ({
   const [pendingAmount, setPendingAmount] = useState(0);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [recorderSession, setRecorderSession] = useState<Session | null>(null);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+
+  const driveFolderId = (billing.patient as any).drive_folder_id || null;
+  const driveFolderName = (billing.patient as any).drive_folder_name || null;
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
@@ -502,6 +509,21 @@ const PatientBillingCard = ({
             <span className="text-sm text-muted-foreground">
               ({billing.sessions.length} פגישות{billing.childPatients && billing.childPatients.length > 0 ? ` · ${billing.childPatients.length} מטופלים` : ""})
             </span>
+            <button
+              type="button"
+              onClick={() => setFolderPickerOpen(true)}
+              title={driveFolderName ? `תיקיית Drive: ${driveFolderName}` : "הגדר תיקיית Drive לסיכומים"}
+              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                driveFolderId
+                  ? "border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20"
+                  : "border-dashed text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {driveFolderId ? <Folder className="h-3 w-3" /> : <FolderCog className="h-3 w-3" />}
+              <span className="max-w-[140px] truncate">
+                {driveFolderName || "הגדר תיקיית Drive"}
+              </span>
+            </button>
           </div>
           <div className="text-left">
             {(() => {
@@ -939,9 +961,22 @@ const PatientBillingCard = ({
         patientId={billing.patient.id}
         patientName={recorderSession?.childPatientName || billing.patient.name}
         sessionDate={recorderSession?.date || ""}
-        driveFolderId={(billing.patient as any).drive_folder_id || null}
-        driveFolderName={(billing.patient as any).drive_folder_name || null}
+        driveFolderId={driveFolderId}
+        driveFolderName={driveFolderName}
         onFolderUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["patients"] });
+          queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
+        }}
+      />
+
+      <DriveFolderPickerDialog
+        open={folderPickerOpen}
+        onOpenChange={setFolderPickerOpen}
+        patientId={billing.patient.id}
+        patientName={billing.patient.name}
+        currentFolderId={driveFolderId}
+        currentFolderName={driveFolderName}
+        onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["patients"] });
           queryClient.invalidateQueries({ queryKey: ["google-calendar-events-billing"] });
         }}
