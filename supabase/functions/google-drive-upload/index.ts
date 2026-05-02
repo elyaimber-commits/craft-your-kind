@@ -86,6 +86,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Persist a session_summary row + trigger calendar recolor (best effort)
+    if (eventId && patientId) {
+      const supaService = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      try {
+        await supaService
+          .from("session_summaries")
+          .upsert(
+            {
+              therapist_id: userId,
+              patient_id: patientId,
+              event_id: eventId,
+              drive_file_id: data.id,
+              drive_file_name: data.name,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "therapist_id,event_id" },
+          );
+      } catch (e) {
+        console.error("session_summaries upsert failed:", e);
+      }
+
+      // Fire-and-forget recolor
+      if (calendarId) {
+        try {
+          fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-color-events`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: authHeader,
+            },
+            body: JSON.stringify({ events: [{ calendarId, eventId }] }),
+          }).catch((e) => console.error("auto-color trigger failed:", e));
+        } catch (e) {
+          console.error("auto-color invoke error:", e);
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({ id: data.id, name: data.name, webViewLink: data.webViewLink }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
