@@ -388,7 +388,7 @@ const Tasks = () => {
                         )}
                         {counts.payment > 0 && (
                           <Badge variant="outline" className="gap-1">
-                            ₪ {counts.payment} לתשלום
+                            {counts.payment} לתשלום (₪{unpaidAmount.toLocaleString("he-IL")})
                           </Badge>
                         )}
                         {counts.invoice > 0 && (
