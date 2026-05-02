@@ -520,6 +520,47 @@ const Tasks = () => {
                         )}
                       </div>
                     </div>
+                    {unpaidRows.length > 0 && (
+                      <div
+                        className="flex flex-wrap gap-2 pt-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const link = buildWhatsAppLink(patient, unpaidRows);
+                            if (!link) {
+                              toast({
+                                title: "אין מספר טלפון",
+                                description: "הוסף מספר טלפון לפציינט/ית",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            window.open(link, "_blank");
+                          }}
+                        >
+                          <MessageCircle className="ml-1 h-4 w-4" />
+                          שלח בקשת תשלום (₪
+                          {unpaidAmount.toLocaleString("he-IL")})
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={markingPaidPatient === patient.id}
+                          onClick={() =>
+                            markPatientUnpaidAsPaid(patient, unpaidRows)
+                          }
+                        >
+                          {markingPaidPatient === patient.id ? (
+                            <Loader2 className="ml-1 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="ml-1 h-4 w-4" />
+                          )}
+                          סמן הכל כשולם
+                        </Button>
+                      </div>
+                    )}
                   </CardHeader>
                   {!isCollapsed && (
                     <CardContent className="space-y-2">
