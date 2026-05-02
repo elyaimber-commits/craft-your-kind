@@ -23,11 +23,13 @@ const computeTargetColor = (
   summarized: boolean,
   paid: boolean,
   invoiced: boolean,
+  isPast: boolean,
 ): string | null => {
   if (summarized && paid && invoiced) return "3";
   if (summarized && paid) return "7";
   if (!summarized && paid) return "6";
   if (summarized && !paid) return "5";
+  if (!summarized && !paid && isPast) return "1"; // lavender
   return null;
 };
 
