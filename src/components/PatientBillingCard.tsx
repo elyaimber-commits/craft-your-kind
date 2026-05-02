@@ -123,6 +123,10 @@ const PatientBillingCard = ({
   const [pendingAmount, setPendingAmount] = useState(0);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [recorderSession, setRecorderSession] = useState<Session | null>(null);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+
+  const driveFolderId = (billing.patient as any).drive_folder_id || null;
+  const driveFolderName = (billing.patient as any).drive_folder_name || null;
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
