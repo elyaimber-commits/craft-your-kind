@@ -82,6 +82,7 @@ const DriveFolderPickerDialog = ({
   };
 
   const reconnectGoogle = async () => {
+    const authWindow = window.open("about:blank", "_blank");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
@@ -91,13 +92,18 @@ const DriveFolderPickerDialog = ({
       });
       if (res.error) throw res.error;
       if ((res.data as any)?.url) {
-        window.open((res.data as any).url, "_blank", "noopener,noreferrer");
+        if (authWindow) {
+          authWindow.location.href = (res.data as any).url;
+        } else {
+          window.location.href = (res.data as any).url;
+        }
         toast({
           title: "פתחנו חלון להרשאת Google",
           description: "אשר את הגישה ל-Drive, וחזור לכאן ונסה שוב.",
         });
       }
     } catch (e: any) {
+      authWindow?.close();
       toast({ title: "שגיאה בחיבור Google", description: e?.message, variant: "destructive" });
     }
   };
