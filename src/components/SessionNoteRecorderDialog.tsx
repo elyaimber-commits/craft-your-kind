@@ -56,6 +56,9 @@ const SessionNoteRecorderDialog = ({
   driveFolderId,
   driveFolderName,
   onFolderUpdated,
+  eventId,
+  calendarId,
+  onSummarySaved,
 }: SessionNoteRecorderDialogProps) => {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
