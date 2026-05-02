@@ -37,15 +37,12 @@ const DriveFolderPickerDialog = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
   const search = async (q: string) => {
     setLoading(true);
+    setNeedsReconnect(false);
     try {
-      const { data, error } = await supabase.functions.invoke("google-drive-folders", {
-        method: "GET" as any,
-        // supabase-js v2 doesn't pass query string with invoke; build URL manually below
-      } as any).catch(() => ({ data: null, error: null } as any));
-
-      // Fallback: use direct fetch to support query params
       const { data: { session } } = await supabase.auth.getSession();
       const url = new URL(
         `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/google-drive-folders`,
@@ -58,7 +55,18 @@ const DriveFolderPickerDialog = ({
         },
       });
       const json = await resp.json();
-      if (!resp.ok) throw new Error(json?.error || "שגיאה בטעינת תיקיות");
+      if (!resp.ok) {
+        const msg = String(json?.error || "");
+        const isScopeError =
+          msg.toLowerCase().includes("insufficient") ||
+          msg.toLowerCase().includes("scope") ||
+          msg.toLowerCase().includes("permission");
+        if (isScopeError) {
+          setNeedsReconnect(true);
+          throw new Error("נדרשת הרשאת Google Drive נוספת. התחבר מחדש ואשר את הגישה ל-Drive.");
+        }
+        throw new Error(json?.error || "שגיאה בטעינת תיקיות");
+      }
       setFolders(json.folders || []);
     } catch (e: any) {
       console.error(e);
@@ -70,6 +78,27 @@ const DriveFolderPickerDialog = ({
       setFolders([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const reconnectGoogle = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+      const res = await supabase.functions.invoke("google-auth", {
+        body: { userId: session.user.id, redirectUrl: window.location.origin + "/dashboard" },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.error) throw res.error;
+      if ((res.data as any)?.url) {
+        window.open((res.data as any).url, "_blank", "noopener,noreferrer");
+        toast({
+          title: "פתחנו חלון להרשאת Google",
+          description: "אשר את הגישה ל-Drive, וחזור לכאן ונסה שוב.",
+        });
+      }
+    } catch (e: any) {
+      toast({ title: "שגיאה בחיבור Google", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -149,6 +178,15 @@ const DriveFolderPickerDialog = ({
             <Search className="h-4 w-4" />
           </Button>
         </div>
+
+        {needsReconnect && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm space-y-2">
+            <p>נדרשת הרשאת Google Drive נוספת כדי לגשת לתיקיות שלך.</p>
+            <Button size="sm" onClick={reconnectGoogle}>
+              התחבר מחדש ל-Google
+            </Button>
+          </div>
+        )}
 
         <div className="max-h-[400px] overflow-y-auto border rounded-md">
           {loading ? (
