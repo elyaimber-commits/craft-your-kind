@@ -35,6 +35,9 @@ Deno.serve(async (req) => {
     const folderId = (body?.folderId || "").toString().trim();
     const filename = (body?.filename || "").toString().trim();
     const content = (body?.content || "").toString();
+    const eventId = (body?.eventId || "").toString().trim();
+    const calendarId = (body?.calendarId || "").toString().trim();
+    const patientId = (body?.patientId || "").toString().trim();
 
     if (!folderId || !filename || !content) {
       return new Response(
