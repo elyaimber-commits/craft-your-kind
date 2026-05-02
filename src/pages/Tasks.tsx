@@ -128,7 +128,8 @@ const Tasks = () => {
       return Array.from(calendarsSet.values());
     },
     enabled: !!user,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const { data: aliases = [] } = useQuery({
