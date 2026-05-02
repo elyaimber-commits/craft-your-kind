@@ -13,7 +13,7 @@ interface CalendarEvent {
   colorId?: string;
 }
 
-const BILLING_COLOR_IDS = ["5", "3"];
+const BILLING_COLOR_IDS = ["5", "3", "6", "7"];
 const isBillingEvent = (colorId?: string) => !colorId || BILLING_COLOR_IDS.includes(colorId);
 
 const normalizeName = (name: string): string =>
