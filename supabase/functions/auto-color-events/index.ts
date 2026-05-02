@@ -2,19 +2,17 @@
 // Body: { events: [{ calendarId, eventId }, ...] }
 //
 // Color rules (status -> Google Calendar colorId):
-//   not summarized + not paid -> "5" (banana / yellow)   "needs handling"
-//   summarized     + not paid -> null (default color)    "awaiting payment"
+//   summarized     + not paid -> "5" (banana / yellow)    "summarized, awaiting payment"
+//   not summarized + not paid -> null (default color)     "nothing done yet"
 //   not summarized + paid     -> "6" (tangerine / orange)
 //   summarized     + paid     -> "3" (grape / purple)
-// Cancelled events ("4" / flamingo) are NEVER touched.
+// Cancelled events ("4" / flamingo) are never modified.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getFreshGoogleAccessToken } from "../_shared/google-token.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const CANCELLED_COLOR_ID = "4";
@@ -22,8 +20,8 @@ const CANCELLED_COLOR_ID = "4";
 const computeTargetColor = (summarized: boolean, paid: boolean): string | null => {
   if (summarized && paid) return "3";
   if (!summarized && paid) return "6";
-  if (summarized && !paid) return null;
-  return "5";
+  if (summarized && !paid) return "5";
+  return null;
 };
 
 Deno.serve(async (req) => {
