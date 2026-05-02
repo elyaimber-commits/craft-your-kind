@@ -23,6 +23,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
