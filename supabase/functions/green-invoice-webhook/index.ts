@@ -344,15 +344,24 @@ serve(async (req) => {
       pidMap.get(ev.patientId)!.push(ev.eventId);
     }
 
-    // Patch calendar events to purple
+    // Patch calendar events: purple if a session summary exists, otherwise tangerine.
+    const eventIdsToColor = toMark.map((ev) => ev.eventId);
+    const { data: existingSummaries } = await supabase
+      .from('session_summaries')
+      .select('event_id')
+      .eq('therapist_id', patient.therapist_id)
+      .in('event_id', eventIdsToColor);
+    const summarizedSet = new Set((existingSummaries || []).map((s: any) => s.event_id));
+
     let colorUpdated = 0;
     for (const ev of toMark) {
+      const targetColor = summarizedSet.has(ev.eventId) ? "3" : "6";
       const patchRes = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(ev.calendarId)}/events/${encodeURIComponent(ev.eventId)}`,
         {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ colorId: "3" }),
+          body: JSON.stringify({ colorId: targetColor }),
         }
       );
       if (patchRes.ok) colorUpdated++;
