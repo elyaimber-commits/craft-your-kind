@@ -418,6 +418,20 @@ Deno.serve(async (req) => {
             "Paid = event_id in payments.paid_event_ids OR colorId in (3,6,7).",
             "Balance per patient = total_billed - total_paid + manual_debts.",
           ],
+          actions: {
+            add_session_summary: {
+              description:
+                "Record that a session has been summarized (notes saved to Drive). Upserts on (therapist_id, event_id) and re-colors the calendar event to reflect summarized status.",
+              body: {
+                patient_id: "uuid (required)",
+                event_id: "string — Google Calendar event id (required)",
+                drive_file_id: "string (optional) — id returned by Drive upload",
+                drive_file_name: "string (optional) — file name in Drive",
+                calendar_id:
+                  "string (optional, default 'primary') — calendar that contains the event; needed for the recolor step to succeed",
+              },
+            },
+          },
         });
       }
 
