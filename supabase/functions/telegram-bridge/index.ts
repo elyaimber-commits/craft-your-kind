@@ -134,7 +134,7 @@ async function fetchCalendarEvents(accessToken: string, startISO: string, endISO
         const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
         if (!r.ok) return [];
         const d = await r.json();
-        return (d.items || []).map((e: any) => ({ ...e, calendarName: cal.summary }));
+        return (d.items || []).map((e: any) => ({ ...e, calendarName: cal.summary, calendarId: cal.id }));
       } catch {
         return [];
       }
