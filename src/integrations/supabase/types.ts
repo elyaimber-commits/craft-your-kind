@@ -342,6 +342,39 @@ export type Database = {
           },
         ]
       }
+      session_summaries: {
+        Row: {
+          created_at: string
+          drive_file_id: string | null
+          drive_file_name: string | null
+          event_id: string
+          id: string
+          patient_id: string
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_file_name?: string | null
+          event_id: string
+          id?: string
+          patient_id: string
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_file_name?: string | null
+          event_id?: string
+          id?: string
+          patient_id?: string
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           created_at: string
