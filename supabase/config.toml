@@ -27,3 +27,6 @@ verify_jwt = false
 [functions.google-drive-upload]
 verify_jwt = false
 
+[functions.auto-color-cron]
+verify_jwt = false
+
