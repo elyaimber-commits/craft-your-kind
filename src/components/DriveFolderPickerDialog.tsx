@@ -57,6 +57,9 @@ const DriveFolderPickerDialog = ({
       const json = await resp.json();
       if (!resp.ok) {
         const msg = String(json?.error || "");
+        if (json?.code === "SERVICE_DISABLED") {
+          throw new Error("Google Drive API לא מופעל בפרויקט Google של החיבור. צריך להפעיל אותו ב-Google Cloud ואז לנסות שוב.");
+        }
         const isScopeError =
           msg.toLowerCase().includes("insufficient") ||
           msg.toLowerCase().includes("scope") ||
