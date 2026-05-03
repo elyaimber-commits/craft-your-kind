@@ -122,6 +122,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [debtExpanded, setDebtExpanded] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice">("all");
   const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
+  const [sentWhatsAppIds, setSentWhatsAppIds] = useState<Set<string>>(new Set());
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -674,23 +676,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 size="sm"
                 variant="default"
                 className="gap-2 bg-green-600 hover:bg-green-700 text-white"
-                onClick={async () => {
-                  const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
-                  const skipped = filteredBillingData.length - withPhone.length;
-                  if (withPhone.length === 0) {
-                    toast.error("אין מטופלים עם מספר טלפון");
-                    return;
-                  }
-                  const names = withPhone.map((b) => b.patient.name).join(", ");
-                  const ok = window.confirm(
-                    `לפתוח חלון WhatsApp עם דרישת תשלום ל-${withPhone.length} מטופלים?\n\n${names}${skipped ? `\n\n(${skipped} ללא טלפון - ידולגו)` : ""}`
-                  );
-                  if (!ok) return;
-                  for (let i = 0; i < withPhone.length; i++) {
-                    window.open(generateWhatsAppMessage(withPhone[i]), "_blank");
-                    if (i < withPhone.length - 1) await new Promise((r) => setTimeout(r, 400));
-                  }
-                  toast.success(`נפתחו ${withPhone.length} חלונות וואטסאפ${skipped ? ` (${skipped} דולגו)` : ""}`);
+                onClick={() => {
+                  setSentWhatsAppIds(new Set());
+                  setBulkWhatsAppOpen(true);
                 }}
               >
                 <MessageCircle className="h-4 w-4" />
@@ -894,6 +882,59 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                   </div>
                 </div>
               ));
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk WhatsApp Dialog - one click per patient to bypass popup blockers */}
+      <Dialog open={bulkWhatsAppOpen} onOpenChange={setBulkWhatsAppOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>שליחת דרישות תשלום ב-WhatsApp</DialogTitle>
+            <DialogDescription>
+              לחץ על "פתח" ליד כל מטופל כדי לפתוח את הצ'אט. הדפדפן חוסם פתיחה אוטומטית של מספר חלונות, לכן יש ללחוץ פעם אחת לכל מטופל.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            {(() => {
+              const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
+              const withoutPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length === 0);
+              return (
+                <>
+                  {withPhone.map((billing) => {
+                    const sent = sentWhatsAppIds.has(billing.patient.id);
+                    return (
+                      <div key={billing.patient.id} className="flex items-center justify-between gap-2 p-2 border rounded">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{billing.patient.name}</div>
+                          <div className="text-xs text-muted-foreground">₪{billing.total}</div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={sent ? "outline" : "default"}
+                          className={sent ? "" : "bg-green-600 hover:bg-green-700 text-white"}
+                          onClick={() => {
+                            window.open(generateWhatsAppMessage(billing), "_blank");
+                            setSentWhatsAppIds((prev) => new Set(prev).add(billing.patient.id));
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4 ml-1" />
+                          {sent ? "נשלח - פתח שוב" : "פתח"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                  {withoutPhone.length > 0 && (
+                    <div className="text-xs text-muted-foreground pt-2 border-t">
+                      {withoutPhone.length} מטופלים ללא טלפון: {withoutPhone.map((b) => b.patient.name).join(", ")}
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground pt-2 border-t">
+                    נפתחו {sentWhatsAppIds.size} מתוך {withPhone.length}
+                  </div>
+                </>
+              );
             })()}
           </div>
         </DialogContent>
