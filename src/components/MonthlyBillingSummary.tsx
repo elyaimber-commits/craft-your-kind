@@ -807,6 +807,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     calendarEventName={calendarNameByPatient.get(billing.patient.id)}
                     priorDebtDetails={patientDebtDetails}
                     manualDebts={manualDebtsByPatient.get(billing.patient.id) || []}
+                    paymentRequestSentAt={requestSentByPatient.get(billing.patient.id) || null}
+                    onPaymentRequestSent={() => recordPaymentRequest(billing.patient.id)}
                   />
                 </div>
               );
