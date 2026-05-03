@@ -461,11 +461,18 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const message = `היי, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה!`;
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    // Use web.whatsapp.com on desktop (Safari blocks api.whatsapp.com via COOP); wa.me on mobile.
-    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    return isMobile
-      ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`
-      : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodeURIComponent(message)}`;
+    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  // Open URL via anchor click — bypasses Safari's COOP block on window.open across origins.
+  const openExternal = (url: string) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // MindMe toggle
