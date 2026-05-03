@@ -9,6 +9,7 @@ import PartialPaymentDialog from "./PartialPaymentDialog";
 import GreenInvoiceCreateDialog from "./GreenInvoiceCreateDialog";
 import SessionNoteRecorderDialog from "./SessionNoteRecorderDialog";
 import DriveFolderPickerDialog from "./DriveFolderPickerDialog";
+import { copyWhatsAppMessageFromUrl, openWhatsAppUrl } from "@/lib/whatsapp";
 import {
   MessageCircle,
   ChevronDown,
@@ -134,7 +135,8 @@ const PatientBillingCard = ({
 
   const openWhatsAppRequest = () => {
     const url = generateWhatsAppMessage(billing);
-    window.open(url, "_blank", "noopener,noreferrer");
+    copyWhatsAppMessageFromUrl(url);
+    openWhatsAppUrl(url);
     onPaymentRequestSent?.();
   };
 
