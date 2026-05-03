@@ -721,6 +721,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 { key: "partial", label: "חלקי" },
                 { key: "paid", label: "שולם" },
                 { key: "pending_invoice", label: "ממתין לחשבונית" },
+                { key: "request_sent", label: "נשלחה בקשת תשלום" },
               ] as const).map((opt) => (
                 <Button
                   key={opt.key}
