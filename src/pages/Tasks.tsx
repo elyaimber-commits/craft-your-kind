@@ -37,6 +37,7 @@ import {
 import SessionNoteRecorderDialog from "@/components/SessionNoteRecorderDialog";
 import GreenInvoiceCreateDialog from "@/components/GreenInvoiceCreateDialog";
 import DriveFolderPickerDialog from "@/components/DriveFolderPickerDialog";
+import { buildWhatsAppUrl, copyWhatsAppMessageFromUrl, openWhatsAppUrl } from "@/lib/whatsapp";
 
 interface Patient extends PatientLite {
   phone: string;
@@ -304,10 +305,7 @@ const Tasks = () => {
       .join(", ");
     const total = unpaid.reduce((s, r) => s + (r.sessionPrice || 0), 0);
     const message = `היי, מעדכן לגבי תשלום.\nמפגשים: ${dates}\nסה״כ: ₪${total}\nתודה!`;
-    const cleanPhone = (patient.phone || "").replace(/\D/g, "");
-    if (!cleanPhone) return null;
-    const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+    return buildWhatsAppUrl(patient.phone, message);
   };
 
   const [markingPaidPatient, setMarkingPaidPatient] = useState<string | null>(null);
@@ -537,7 +535,8 @@ const Tasks = () => {
                               });
                               return;
                             }
-                            window.open(link, "_blank", "noopener,noreferrer");
+                            copyWhatsAppMessageFromUrl(link);
+                            openWhatsAppUrl(link);
                           }}
                         >
                           <MessageCircle className="ml-1 h-4 w-4" />
