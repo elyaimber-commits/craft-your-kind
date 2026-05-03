@@ -236,6 +236,33 @@ export type Database = {
           },
         ]
       }
+      payment_requests: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          patient_id: string
+          sent_at: string
+          therapist_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          patient_id: string
+          sent_at?: string
+          therapist_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          patient_id?: string
+          sent_at?: string
+          therapist_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
