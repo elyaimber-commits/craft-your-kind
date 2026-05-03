@@ -549,7 +549,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const statusCounts = {
     all: searchOnlyData.length,
     paid: searchOnlyData.filter((b) => getPatientStatus(b) === "paid").length,
-    unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
+    unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid" && !requestSentByPatient.has(b.patient.id)).length,
     partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
     pending_invoice: searchOnlyData.filter((b) => hasPendingInvoice(b)).length,
     request_sent: searchOnlyData.filter((b) => requestSentByPatient.has(b.patient.id)).length,
