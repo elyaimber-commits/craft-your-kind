@@ -134,13 +134,7 @@ const PatientBillingCard = ({
 
   const openWhatsAppRequest = () => {
     const url = generateWhatsAppMessage(billing);
-    const a = document.createElement("a");
-    a.href = `/whatsapp-redirect.html?to=${encodeURIComponent(url)}&delay=75`;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    window.open(url, "_blank", "noopener,noreferrer");
     onPaymentRequestSent?.();
   };
 
