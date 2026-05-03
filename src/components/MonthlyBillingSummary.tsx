@@ -536,6 +536,9 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "pending_invoice") return hasPendingInvoice(b);
       if (statusFilter === "request_sent") return requestSentByPatient.has(b.patient.id);
+      if (statusFilter === "unpaid") {
+        return getPatientStatus(b) === "unpaid" && !requestSentByPatient.has(b.patient.id);
+      }
       return getPatientStatus(b) === statusFilter;
     });
 
