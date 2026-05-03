@@ -464,9 +464,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const encodedMessage = encodeURIComponent(message);
     const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
-    const isSafari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(userAgent);
 
-    return isMobile || isSafari
+    return isMobile
       ? `whatsapp://send?phone=${intlPhone}&text=${encodedMessage}`
       : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodedMessage}`;
   };
@@ -943,9 +942,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               }
               const newSent = new Set(sentWhatsAppIds);
               toSend.forEach((billing, index) => {
-                window.setTimeout(() => {
-                  openExternal(generateWhatsAppMessage(billing), 125 + index * 175);
-                }, index * 350);
+                openExternal(generateWhatsAppMessage(billing), 125 + index * 250);
                 newSent.add(billing.patient.id);
               });
               setSentWhatsAppIds(newSent);
