@@ -14,6 +14,7 @@ import PatientBillingCard from "@/components/PatientBillingCard";
 import EventAliasSuggestion from "@/components/EventAliasSuggestion";
 import IgnoredEventsManager from "@/components/IgnoredEventsManager";
 import MindMeExport from "@/components/MindMeExport";
+import { buildWhatsAppUrl, copyWhatsAppMessageFromUrl, openWhatsAppUrl } from "@/lib/whatsapp";
 
 interface Patient {
   id: string;
@@ -491,14 +492,12 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const generateWhatsAppMessage = (billing: { patient: Patient; sessions: { date: string }[]; total: number }) => {
     const dates = billing.sessions.map((s) => s.date).join(", ");
     const message = `היי, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה!`;
-    const cleanPhone = billing.patient.phone.replace(/\D/g, "");
-    const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    const encodedMessage = encodeURIComponent(message);
-    return `https://wa.me/${intlPhone}?text=${encodedMessage}`;
+    return buildWhatsAppUrl(billing.patient.phone, message) || "";
   };
 
   const openExternal = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+    copyWhatsAppMessageFromUrl(url);
+    openWhatsAppUrl(url);
   };
 
   // MindMe toggle
