@@ -549,6 +549,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "pending_invoice") return hasPendingInvoice(b);
+      if (statusFilter === "request_sent") return requestSentByPatient.has(b.patient.id);
       return getPatientStatus(b) === statusFilter;
     });
 
@@ -562,6 +563,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
     partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
     pending_invoice: searchOnlyData.filter((b) => hasPendingInvoice(b)).length,
+    request_sent: searchOnlyData.filter((b) => requestSentByPatient.has(b.patient.id)).length,
   };
 
   // MindMe commission calculations
