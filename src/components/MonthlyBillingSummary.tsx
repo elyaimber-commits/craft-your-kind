@@ -124,6 +124,17 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
   const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
   const [sentWhatsAppIds, setSentWhatsAppIds] = useState<Set<string>>(new Set());
+  const [selectedWhatsAppIds, setSelectedWhatsAppIds] = useState<Set<string>>(new Set());
+
+  // When dialog opens, default-select all patients with phone
+  useEffect(() => {
+    if (bulkWhatsAppOpen) {
+      const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
+      setSelectedWhatsAppIds(new Set(withPhone.map((b) => b.patient.id)));
+      setSentWhatsAppIds(new Set());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkWhatsAppOpen]);
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
@@ -887,56 +898,109 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk WhatsApp Dialog - one click per patient to bypass popup blockers */}
+      {/* Bulk WhatsApp Dialog - select multiple and open all in one click */}
       <Dialog open={bulkWhatsAppOpen} onOpenChange={setBulkWhatsAppOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>שליחת דרישות תשלום ב-WhatsApp</DialogTitle>
             <DialogDescription>
-              לחץ על "פתח" ליד כל מטופל כדי לפתוח את הצ'אט. הדפדפן חוסם פתיחה אוטומטית של מספר חלונות, לכן יש ללחוץ פעם אחת לכל מטופל.
+              סמן למי לשלוח, ולחץ על "שלח לכולם". ייפתח חלון WhatsApp לכל מטופל מסומן.
+              אם הדפדפן חוסם חלונות מרובים, אשר את הפתיחה בפעם הראשונה.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 mt-2">
-            {(() => {
-              const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
-              const withoutPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length === 0);
-              return (
-                <>
+          {(() => {
+            const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
+            const withoutPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length === 0);
+            const allSelected = withPhone.length > 0 && withPhone.every((b) => selectedWhatsAppIds.has(b.patient.id));
+            const toggleAll = () => {
+              if (allSelected) setSelectedWhatsAppIds(new Set());
+              else setSelectedWhatsAppIds(new Set(withPhone.map((b) => b.patient.id)));
+            };
+            const sendAll = () => {
+              const toSend = withPhone.filter((b) => selectedWhatsAppIds.has(b.patient.id));
+              if (toSend.length === 0) {
+                toast.error("לא נבחרו מטופלים");
+                return;
+              }
+              const newSent = new Set(sentWhatsAppIds);
+              toSend.forEach((billing) => {
+                window.open(generateWhatsAppMessage(billing), "_blank");
+                newSent.add(billing.patient.id);
+              });
+              setSentWhatsAppIds(newSent);
+              toast.success(`נפתחו ${toSend.length} חלונות WhatsApp`);
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between gap-2 py-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="wa-select-all"
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                    />
+                    <label htmlFor="wa-select-all" className="text-sm font-medium cursor-pointer">
+                      בחר הכל ({withPhone.length})
+                    </label>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    נבחרו {withPhone.filter((b) => selectedWhatsAppIds.has(b.patient.id)).length}
+                  </span>
+                </div>
+                <div className="space-y-1 mt-2 max-h-[40vh] overflow-y-auto">
                   {withPhone.map((billing) => {
+                    const checked = selectedWhatsAppIds.has(billing.patient.id);
                     const sent = sentWhatsAppIds.has(billing.patient.id);
                     return (
-                      <div key={billing.patient.id} className="flex items-center justify-between gap-2 p-2 border rounded">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{billing.patient.name}</div>
-                          <div className="text-xs text-muted-foreground">₪{billing.total}</div>
+                      <label
+                        key={billing.patient.id}
+                        htmlFor={`wa-${billing.patient.id}`}
+                        className="flex items-center justify-between gap-2 p-2 border rounded cursor-pointer hover:bg-muted/50"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Checkbox
+                            id={`wa-${billing.patient.id}`}
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              setSelectedWhatsAppIds((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(billing.patient.id);
+                                else next.delete(billing.patient.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{billing.patient.name}</div>
+                            <div className="text-xs text-muted-foreground">₪{billing.total}</div>
+                          </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant={sent ? "outline" : "default"}
-                          className={sent ? "" : "bg-green-600 hover:bg-green-700 text-white"}
-                          onClick={() => {
-                            window.open(generateWhatsAppMessage(billing), "_blank");
-                            setSentWhatsAppIds((prev) => new Set(prev).add(billing.patient.id));
-                          }}
-                        >
-                          <MessageCircle className="h-4 w-4 ml-1" />
-                          {sent ? "נשלח - פתח שוב" : "פתח"}
-                        </Button>
-                      </div>
+                        {sent && <span className="text-xs text-green-600">נשלח</span>}
+                      </label>
                     );
                   })}
-                  {withoutPhone.length > 0 && (
-                    <div className="text-xs text-muted-foreground pt-2 border-t">
-                      {withoutPhone.length} מטופלים ללא טלפון: {withoutPhone.map((b) => b.patient.name).join(", ")}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground pt-2 border-t">
-                    נפתחו {sentWhatsAppIds.size} מתוך {withPhone.length}
+                </div>
+                {withoutPhone.length > 0 && (
+                  <div className="text-xs text-muted-foreground pt-2 border-t mt-2">
+                    {withoutPhone.length} מטופלים ללא טלפון: {withoutPhone.map((b) => b.patient.name).join(", ")}
                   </div>
-                </>
-              );
-            })()}
-          </div>
+                )}
+                <div className="flex justify-end gap-2 pt-3 border-t mt-3">
+                  <Button variant="outline" onClick={() => setBulkWhatsAppOpen(false)}>
+                    ביטול
+                  </Button>
+                  <Button
+                    onClick={sendAll}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={withPhone.filter((b) => selectedWhatsAppIds.has(b.patient.id)).length === 0}
+                  >
+                    <MessageCircle className="h-4 w-4 ml-1" />
+                    שלח לכולם ({withPhone.filter((b) => selectedWhatsAppIds.has(b.patient.id)).length})
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </Card>
