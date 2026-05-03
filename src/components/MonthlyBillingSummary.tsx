@@ -669,6 +669,34 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 </Button>
               ))}
             </div>
+            {statusFilter === "unpaid" && filteredBillingData.length > 0 && (
+              <Button
+                size="sm"
+                variant="default"
+                className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                onClick={async () => {
+                  const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
+                  const skipped = filteredBillingData.length - withPhone.length;
+                  if (withPhone.length === 0) {
+                    toast.error("אין מטופלים עם מספר טלפון");
+                    return;
+                  }
+                  const names = withPhone.map((b) => b.patient.name).join(", ");
+                  const ok = window.confirm(
+                    `לפתוח חלון WhatsApp עם דרישת תשלום ל-${withPhone.length} מטופלים?\n\n${names}${skipped ? `\n\n(${skipped} ללא טלפון - ידולגו)` : ""}`
+                  );
+                  if (!ok) return;
+                  for (let i = 0; i < withPhone.length; i++) {
+                    window.open(generateWhatsAppMessage(withPhone[i]), "_blank");
+                    if (i < withPhone.length - 1) await new Promise((r) => setTimeout(r, 400));
+                  }
+                  toast.success(`נפתחו ${withPhone.length} חלונות וואטסאפ${skipped ? ` (${skipped} דולגו)` : ""}`);
+                }}
+              >
+                <MessageCircle className="h-4 w-4" />
+                שלח דרישת תשלום לכולם ({filteredBillingData.length})
+              </Button>
+            )}
           </div>
         )}
         {filteredBillingData.length === 0 && filteredUnmatched.length === 0 ? (
