@@ -128,6 +128,17 @@ const PatientBillingCard = ({
   const driveFolderId = (billing.patient as any).drive_folder_id || null;
   const driveFolderName = (billing.patient as any).drive_folder_name || null;
 
+  const openWhatsAppRequest = () => {
+    const url = generateWhatsAppMessage(billing);
+    const a = document.createElement("a");
+    a.href = `/whatsapp-redirect.html?to=${encodeURIComponent(url)}&delay=75`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
   const { data: patientAliases = [] } = useQuery({
     queryKey: ["event-aliases-for-patient", billing.patient.id],
@@ -577,7 +588,7 @@ const PatientBillingCard = ({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            onClick={() => window.open(generateWhatsAppMessage(billing), "_blank")}
+            onClick={openWhatsAppRequest}
           >
             <MessageCircle className="ml-1 h-4 w-4" />
             שלח בקשת תשלום

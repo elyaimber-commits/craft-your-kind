@@ -469,10 +469,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
       : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodedMessage}`;
   };
 
-  // Open URL via anchor click — bypasses Safari's COOP block on window.open across origins.
-  const openExternal = (url: string) => {
+  // Open a same-origin redirect page first. Safari blocks direct popup navigation to WhatsApp
+  // because WhatsApp sends COOP headers; navigating from our lightweight page is more reliable.
+  const openExternal = (url: string, delay = 75) => {
     const a = document.createElement("a");
-    a.href = url;
+    a.href = `/whatsapp-redirect.html?to=${encodeURIComponent(url)}&delay=${delay}`;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     document.body.appendChild(a);
@@ -941,7 +942,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               const newSent = new Set(sentWhatsAppIds);
               toSend.forEach((billing, index) => {
                 window.setTimeout(() => {
-                  openExternal(generateWhatsAppMessage(billing));
+                  openExternal(generateWhatsAppMessage(billing), 125 + index * 175);
                 }, index * 350);
                 newSent.add(billing.patient.id);
               });
