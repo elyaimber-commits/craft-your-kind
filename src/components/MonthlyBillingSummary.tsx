@@ -462,9 +462,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
     const encodedMessage = encodeURIComponent(message);
-    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+    const isSafari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(userAgent);
 
-    return isMobile
+    return isMobile || isSafari
       ? `whatsapp://send?phone=${intlPhone}&text=${encodedMessage}`
       : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodedMessage}`;
   };
