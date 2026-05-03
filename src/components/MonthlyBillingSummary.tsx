@@ -233,7 +233,39 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
-  // Build override map: event_id -> custom_price
+  const { data: paymentRequests = [] } = useQuery({
+    queryKey: ["payment-requests", currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payment_requests")
+        .select("patient_id, sent_at")
+        .eq("month", currentMonth);
+      if (error) throw error;
+      return data as { patient_id: string; sent_at: string }[];
+    },
+    enabled: !!user,
+  });
+
+  const requestSentByPatient = new Map<string, string>();
+  paymentRequests.forEach((r) => requestSentByPatient.set(r.patient_id, r.sent_at));
+
+  const recordPaymentRequest = async (patientId: string) => {
+    if (!user) return;
+    try {
+      await supabase.from("payment_requests").upsert(
+        {
+          therapist_id: user.id,
+          patient_id: patientId,
+          month: currentMonth,
+          sent_at: new Date().toISOString(),
+        },
+        { onConflict: "therapist_id,patient_id,month" }
+      );
+      queryClient.invalidateQueries({ queryKey: ["payment-requests", currentMonth] });
+    } catch (e) {
+      console.error("Failed to record payment request", e);
+    }
+  };
   const overrideMap = new Map<string, number>();
   sessionOverrides.forEach((o: any) => {
     overrideMap.set(o.event_id, Number(o.custom_price));
