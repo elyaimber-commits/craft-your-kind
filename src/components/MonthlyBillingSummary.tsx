@@ -965,8 +965,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 return;
               }
               const newSent = new Set(sentWhatsAppIds);
-              toSend.forEach((billing, index) => {
-                openExternal(generateWhatsAppMessage(billing), 125 + index * 250);
+              toSend.forEach((billing) => {
+                openExternal(generateWhatsAppMessage(billing));
                 recordPaymentRequest(billing.patient.id);
                 newSent.add(billing.patient.id);
               });
