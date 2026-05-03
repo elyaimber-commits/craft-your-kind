@@ -85,6 +85,8 @@ interface PatientBillingCardProps {
   calendarEventName?: string;
   priorDebtDetails?: PriorDebtDetail[];
   manualDebts?: ManualDebt[];
+  paymentRequestSentAt?: string | null;
+  onPaymentRequestSent?: () => void;
 }
 
 const PatientBillingCard = ({
@@ -97,6 +99,8 @@ const PatientBillingCard = ({
   calendarEventName,
   priorDebtDetails = [],
   manualDebts = [],
+  paymentRequestSentAt = null,
+  onPaymentRequestSent,
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
