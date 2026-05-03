@@ -120,7 +120,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [debtExpanded, setDebtExpanded] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice" | "request_sent">("all");
   const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
   const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
   const [sentWhatsAppIds, setSentWhatsAppIds] = useState<Set<string>>(new Set());
