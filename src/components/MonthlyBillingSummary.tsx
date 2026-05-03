@@ -494,24 +494,11 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
     const encodedMessage = encodeURIComponent(message);
-    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
-
-    return isMobile
-      ? `whatsapp://send?phone=${intlPhone}&text=${encodedMessage}`
-      : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodedMessage}`;
+    return `https://wa.me/${intlPhone}?text=${encodedMessage}`;
   };
 
-  // Open a same-origin redirect page first. Safari blocks direct popup navigation to WhatsApp
-  // because WhatsApp sends COOP headers; navigating from our lightweight page is more reliable.
-  const openExternal = (url: string, delay = 75) => {
-    const a = document.createElement("a");
-    a.href = `/whatsapp-redirect.html?to=${encodeURIComponent(url)}&delay=${delay}`;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const openExternal = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // MindMe toggle
@@ -978,8 +965,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 return;
               }
               const newSent = new Set(sentWhatsAppIds);
-              toSend.forEach((billing, index) => {
-                openExternal(generateWhatsAppMessage(billing), 125 + index * 250);
+              toSend.forEach((billing) => {
+                openExternal(generateWhatsAppMessage(billing));
                 recordPaymentRequest(billing.patient.id);
                 newSent.add(billing.patient.id);
               });

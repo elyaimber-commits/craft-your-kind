@@ -537,7 +537,7 @@ const Tasks = () => {
                               });
                               return;
                             }
-                            window.open(link, "_blank");
+                            window.open(link, "_blank", "noopener,noreferrer");
                           }}
                         >
                           <MessageCircle className="ml-1 h-4 w-4" />
