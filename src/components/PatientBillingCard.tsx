@@ -141,6 +141,7 @@ const PatientBillingCard = ({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    onPaymentRequestSent?.();
   };
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
