@@ -85,6 +85,8 @@ interface PatientBillingCardProps {
   calendarEventName?: string;
   priorDebtDetails?: PriorDebtDetail[];
   manualDebts?: ManualDebt[];
+  paymentRequestSentAt?: string | null;
+  onPaymentRequestSent?: () => void;
 }
 
 const PatientBillingCard = ({
@@ -97,6 +99,8 @@ const PatientBillingCard = ({
   calendarEventName,
   priorDebtDetails = [],
   manualDebts = [],
+  paymentRequestSentAt = null,
+  onPaymentRequestSent,
 }: PatientBillingCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -137,6 +141,7 @@ const PatientBillingCard = ({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    onPaymentRequestSent?.();
   };
 
   // Load aliases for this patient (used by the partial-payment dialog to match prior-month events)
@@ -517,6 +522,19 @@ const PatientBillingCard = ({
                 שולם חלקית (₪{paidAmount}/{billing.total})
               </span>
             )}
+            {paymentRequestSentAt && !allPaid && (() => {
+              const d = new Date(paymentRequestSentAt);
+              const label = `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+              return (
+                <span
+                  className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full"
+                  title={`נשלחה ב-${label}`}
+                >
+                  <MessageCircle className="h-3 w-3" />
+                  נשלחה בקשת תשלום · {label}
+                </span>
+              );
+            })()}
             <span className="text-sm text-muted-foreground">
               ({billing.sessions.length} פגישות{billing.childPatients && billing.childPatients.length > 0 ? ` · ${billing.childPatients.length} מטופלים` : ""})
             </span>

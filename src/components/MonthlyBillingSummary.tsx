@@ -120,7 +120,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [monthOffset, setMonthOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [debtExpanded, setDebtExpanded] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid" | "partial" | "pending_invoice" | "request_sent">("all");
   const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
   const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
   const [sentWhatsAppIds, setSentWhatsAppIds] = useState<Set<string>>(new Set());
@@ -233,7 +233,39 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     enabled: !!user,
   });
 
-  // Build override map: event_id -> custom_price
+  const { data: paymentRequests = [] } = useQuery({
+    queryKey: ["payment-requests", currentMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payment_requests")
+        .select("patient_id, sent_at")
+        .eq("month", currentMonth);
+      if (error) throw error;
+      return data as { patient_id: string; sent_at: string }[];
+    },
+    enabled: !!user,
+  });
+
+  const requestSentByPatient = new Map<string, string>();
+  paymentRequests.forEach((r) => requestSentByPatient.set(r.patient_id, r.sent_at));
+
+  const recordPaymentRequest = async (patientId: string) => {
+    if (!user) return;
+    try {
+      await supabase.from("payment_requests").upsert(
+        {
+          therapist_id: user.id,
+          patient_id: patientId,
+          month: currentMonth,
+          sent_at: new Date().toISOString(),
+        },
+        { onConflict: "therapist_id,patient_id,month" }
+      );
+      queryClient.invalidateQueries({ queryKey: ["payment-requests", currentMonth] });
+    } catch (e) {
+      console.error("Failed to record payment request", e);
+    }
+  };
   const overrideMap = new Map<string, number>();
   sessionOverrides.forEach((o: any) => {
     overrideMap.set(o.event_id, Number(o.custom_price));
@@ -517,6 +549,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     .filter((b) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "pending_invoice") return hasPendingInvoice(b);
+      if (statusFilter === "request_sent") return requestSentByPatient.has(b.patient.id);
       return getPatientStatus(b) === statusFilter;
     });
 
@@ -530,6 +563,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     unpaid: searchOnlyData.filter((b) => getPatientStatus(b) === "unpaid").length,
     partial: searchOnlyData.filter((b) => getPatientStatus(b) === "partial").length,
     pending_invoice: searchOnlyData.filter((b) => hasPendingInvoice(b)).length,
+    request_sent: searchOnlyData.filter((b) => requestSentByPatient.has(b.patient.id)).length,
   };
 
   // MindMe commission calculations
@@ -687,6 +721,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 { key: "partial", label: "חלקי" },
                 { key: "paid", label: "שולם" },
                 { key: "pending_invoice", label: "ממתין לחשבונית" },
+                { key: "request_sent", label: "נשלחה בקשת תשלום" },
               ] as const).map((opt) => (
                 <Button
                   key={opt.key}
@@ -772,6 +807,8 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                     calendarEventName={calendarNameByPatient.get(billing.patient.id)}
                     priorDebtDetails={patientDebtDetails}
                     manualDebts={manualDebtsByPatient.get(billing.patient.id) || []}
+                    paymentRequestSentAt={requestSentByPatient.get(billing.patient.id) || null}
+                    onPaymentRequestSent={() => recordPaymentRequest(billing.patient.id)}
                   />
                 </div>
               );
@@ -943,6 +980,7 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
               const newSent = new Set(sentWhatsAppIds);
               toSend.forEach((billing, index) => {
                 openExternal(generateWhatsAppMessage(billing), 125 + index * 250);
+                recordPaymentRequest(billing.patient.id);
                 newSent.add(billing.patient.id);
               });
               setSentWhatsAppIds(newSent);
