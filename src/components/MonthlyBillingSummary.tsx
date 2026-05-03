@@ -124,6 +124,17 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
   const [paidBreakdownOpen, setPaidBreakdownOpen] = useState(false);
   const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
   const [sentWhatsAppIds, setSentWhatsAppIds] = useState<Set<string>>(new Set());
+  const [selectedWhatsAppIds, setSelectedWhatsAppIds] = useState<Set<string>>(new Set());
+
+  // When dialog opens, default-select all patients with phone
+  useEffect(() => {
+    if (bulkWhatsAppOpen) {
+      const withPhone = filteredBillingData.filter((b) => (b.patient.phone || "").replace(/\D/g, "").length > 0);
+      setSelectedWhatsAppIds(new Set(withPhone.map((b) => b.patient.id)));
+      setSentWhatsAppIds(new Set());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkWhatsAppOpen]);
   const syncedMonthsRef = useRef<Set<string>>(new Set());
 
   const selectedDate = new Date();
