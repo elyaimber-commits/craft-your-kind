@@ -461,7 +461,12 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
     const message = `היי, מעדכן לגבי החודש.\nמפגשים: ${dates}\nסה״כ: ₪${billing.total}\nתודה!`;
     const cleanPhone = billing.patient.phone.replace(/\D/g, "");
     const intlPhone = cleanPhone.startsWith("0") ? "972" + cleanPhone.slice(1) : cleanPhone;
-    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+    const encodedMessage = encodeURIComponent(message);
+    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    return isMobile
+      ? `whatsapp://send?phone=${intlPhone}&text=${encodedMessage}`
+      : `https://web.whatsapp.com/send?phone=${intlPhone}&text=${encodedMessage}`;
   };
 
   // Open URL via anchor click — bypasses Safari's COOP block on window.open across origins.
@@ -934,8 +939,10 @@ const MonthlyBillingSummary = ({ patients }: MonthlyBillingSummaryProps) => {
                 return;
               }
               const newSent = new Set(sentWhatsAppIds);
-              toSend.forEach((billing) => {
-                openExternal(generateWhatsAppMessage(billing));
+              toSend.forEach((billing, index) => {
+                window.setTimeout(() => {
+                  openExternal(generateWhatsAppMessage(billing));
+                }, index * 350);
                 newSent.add(billing.patient.id);
               });
               setSentWhatsAppIds(newSent);
